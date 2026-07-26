@@ -12,6 +12,7 @@
 
 ### Fixed
  - Map `infrared_ac` virtual remotes to the thermostat-style IR air-conditioner accessory instead of generic IR button switches.
+ - Build the runtime automatically when the plugin is installed directly from GitHub.
 
 ### Security
  - Account tokens are kept outside `config.json` in a `0600` persist file and are renewed atomically.
