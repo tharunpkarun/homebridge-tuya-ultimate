@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+ - Smart Life and Tuya Smart QR account authorization without per-user Tuya IoT developer credentials.
+ - Encrypted Tuya device-sharing API transport, token renewal, account MQTT, raw datapoint conversion strategies, scenes, and Config UI onboarding.
+ - Account devices are normalized into the existing official accessory factory, preserving its category handlers and device overrides.
+
+### Changed
+ - Updated the MQTT and UUID runtime dependencies to versions with no known production audit findings.
+
+### Security
+ - Account tokens are kept outside `config.json` in a `0600` persist file and are renewed atomically.
+ - Compatibility mode uses Home Assistant's public Tuya client ID and QR schema by default, with an explicit coexistence warning and optional identity overrides.
+
 ## [2.5.1] - (2026.7.22)
 
 ### Fixed

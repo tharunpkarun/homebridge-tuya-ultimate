@@ -64,6 +64,29 @@ export interface TuyaPlatformHomeConfigOptions {
   forceIPv4: boolean;
 }
 
+/**
+ * Tuya's account-sharing API is the QR flow used by the official Home
+ * Assistant integration. The integration owns one public client id; individual
+ * users only provide the user code shown by Smart Life or Tuya Smart and scan a
+ * QR code in that app.
+ */
+export interface TuyaPlatformAccountConfigOptions {
+  projectType: '3';
+  userCode: string;
+  appSchema: 'smartlife' | 'tuyaSmart';
+  clientId?: string;
+  qrSchema?: string;
+  endpoint?: string;
+  homeWhitelist?: Array<string>;
+  deviceOverrides?: Array<TuyaPlatformDeviceConfig>;
+  serviceInformationOverrides?: Array<TuyaPlatformServiceInformationConfig>;
+  generateWeatherAccessory: boolean;
+  weatherAPI: string;
+  debug?: boolean;
+  debugLevel?: string;
+  forceIPv4: boolean;
+}
+
 export interface RTSPCameraConfig {
   deviceId: string;
   deviceName?: string;
@@ -72,7 +95,9 @@ export interface RTSPCameraConfig {
   password?: string;
 }
 
-export type TuyaPlatformConfigOptions = TuyaPlatformCustomConfigOptions | TuyaPlatformHomeConfigOptions;
+export type TuyaPlatformConfigOptions = TuyaPlatformCustomConfigOptions
+  | TuyaPlatformHomeConfigOptions
+  | TuyaPlatformAccountConfigOptions;
 
 export interface TuyaPlatformConfig extends PlatformConfig {
   options: TuyaPlatformConfigOptions;
@@ -103,5 +128,19 @@ export const homeOptionsSchema = {
     deviceOverrides: { 'type': 'array' },
     debug: { type: 'boolean' },
     debugLevel: { 'type': 'string' },
+  },
+};
+
+export const accountOptionsSchema = {
+  properties: {
+    userCode: { type: 'string', minLength: 1, required: true },
+    appSchema: { type: 'string', enum: ['smartlife', 'tuyaSmart'], required: true },
+    clientId: { type: 'string' },
+    qrSchema: { type: 'string' },
+    endpoint: { type: 'string', format: 'url' },
+    homeWhitelist: { type: 'array', items: { type: 'string' } },
+    deviceOverrides: { type: 'array' },
+    debug: { type: 'boolean' },
+    debugLevel: { type: 'string' },
   },
 };

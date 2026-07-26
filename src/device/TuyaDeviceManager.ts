@@ -1,6 +1,7 @@
 import EventEmitter from 'events';
 import TuyaOpenAPI from '../core/TuyaOpenAPI';
 import TuyaOpenMQ from '../core/TuyaOpenMQ';
+import { TuyaCloudAPI, TuyaMessageBus } from '../core/TuyaCloudAPI';
 import { ExLogger, logger, PrefixLogger } from '../util/Logger';
 import TuyaDevice, {
   TuyaDeviceSchema,
@@ -29,20 +30,21 @@ export default class TuyaDeviceManager extends EventEmitter {
 
   static readonly Events = Events;
 
-  public mq: TuyaOpenMQ;
+  public mq: TuyaMessageBus;
   public ownerIDs: string[] = [];
   public devices: TuyaDevice[] = [];
   public log: ExLogger;
 
   constructor(
-    public api: TuyaOpenAPI,
+    public api: TuyaCloudAPI,
     public debug = false,
+    messageBus?: TuyaMessageBus,
   ) {
     super();
 
     this.log = new PrefixLogger(logger(), TuyaDeviceManager.name, debug);
 
-    this.mq = new TuyaOpenMQ(api);
+    this.mq = messageBus ?? new TuyaOpenMQ(api as TuyaOpenAPI);
     this.mq.addMessageListener(this.onMQTTMessage.bind(this));
   }
 

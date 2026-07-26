@@ -1,0 +1,116 @@
+<style>
+  #accountLogin { max-width: 680px; }
+  #qrImage { width: 260px; height: 260px; padding: 10px; background: white; border-radius: 8px; }
+</style>
+
+<div id="accountLogin" class="card card-body mb-3 d-none">
+  <h5>Smart Life / Tuya Smart QR login</h5>
+  <p class="text-muted">No personal IoT Developer Platform project, Access ID, or Access Secret is required.</p>
+  <div class="alert alert-warning">
+    Compatibility mode uses Home Assistant's public Tuya authorization identity by default. Authorizing the same Tuya account may disconnect or replace Home Assistant's existing Tuya session.
+  </div>
+  <button id="startQr" type="button" class="btn btn-primary">Start QR login</button>
+  <div id="qrPanel" class="mt-3 d-none">
+    <img id="qrImage" alt="Tuya account login QR code">
+    <p class="mt-2">Scan with the selected <strong id="appName"></strong> app.</p>
+  </div>
+  <div id="loginStatus" class="mt-2 text-muted" role="status"></div>
+</div>
+
+<script>
+(() => {
+  let config = {};
+  let qrToken;
+  let pollTimer;
+  const panel = document.getElementById('accountLogin');
+  const status = document.getElementById('loginStatus');
+  const qrPanel = document.getElementById('qrPanel');
+  const qrImage = document.getElementById('qrImage');
+  const startButton = document.getElementById('startQr');
+
+  window.homebridge.addEventListener('ready', async () => {
+    window.homebridge.showSchemaForm();
+    const blocks = await window.homebridge.getPluginConfig();
+    config = blocks[0] || {};
+    render();
+    window.homebridge.addEventListener('configChanged', event => {
+      config = event.data || config;
+      render();
+    });
+    startButton.addEventListener('click', startLogin);
+  });
+
+  function options() { return config.options || {}; }
+
+  function render() {
+    const active = options().projectType === '3';
+    panel.classList.toggle('d-none', !active);
+    if (active && options().userCode) checkStatus();
+  }
+
+  async function checkStatus() {
+    try {
+      const result = await window.homebridge.request('/sharing/status', { userCode: options().userCode });
+      if (result.connected) setStatus(`Connected${result.username ? ` as ${result.username}` : ''}.`, 'success');
+    } catch (_) { /* Not authorized yet. */ }
+  }
+
+  async function startLogin() {
+    stopPolling();
+    try {
+      const value = options();
+      if (!value.userCode) throw new Error('Enter the app User Code in the form below first.');
+      startButton.disabled = true;
+      setStatus('Creating QR code...', 'muted');
+      const result = await window.homebridge.request('/sharing/qr/start', {
+        userCode: value.userCode,
+        clientId: value.clientId,
+        appSchema: value.appSchema,
+        endpoint: value.endpoint,
+        qrSchema: value.qrSchema,
+      });
+      qrToken = result.qrToken;
+      qrImage.src = result.qrImage;
+      document.getElementById('appName').textContent = value.appSchema === 'smartlife' ? 'Smart Life' : 'Tuya Smart';
+      qrPanel.classList.remove('d-none');
+      setStatus('Waiting for scan and confirmation...', 'info');
+      pollTimer = window.setInterval(pollLogin, 2500);
+    } catch (error) {
+      setStatus(error.message || String(error), 'danger');
+    } finally {
+      startButton.disabled = false;
+    }
+  }
+
+  async function pollLogin() {
+    try {
+      const value = options();
+      const result = await window.homebridge.request('/sharing/qr/poll', {
+        qrToken,
+        userCode: value.userCode,
+        clientId: value.clientId,
+        appSchema: value.appSchema,
+        endpoint: value.endpoint,
+      });
+      if (result.state === 'pending') return;
+      stopPolling();
+      qrPanel.classList.add('d-none');
+      setStatus('Connected. Save the configuration and restart Homebridge.', 'success');
+      window.homebridge.toast.success('Tuya account authorization complete.');
+    } catch (error) {
+      stopPolling();
+      setStatus(error.message || String(error), 'danger');
+    }
+  }
+
+  function stopPolling() {
+    if (pollTimer) window.clearInterval(pollTimer);
+    pollTimer = undefined;
+  }
+
+  function setStatus(message, kind) {
+    status.className = `mt-2 text-${kind}`;
+    status.textContent = message;
+  }
+})();
+</script>

@@ -29,6 +29,7 @@ Forked from 0x5e/homebridge-tuya-platform, with a focus on fixing bugs and addin
 - Fewer API errors.
 - Lower development costs for new accessory categories.
 - Supports Tuya Scenes (Tap-to-Run).
+- Supports Smart Life and Tuya Smart QR account authorization without a personal Tuya IoT developer project.
 - Includes the ability to override device configurations, which enables support for "non-standard" DPs.
 - Supports over 60+ device categories, including most light, switch, sensor, camera, lock, IR remote control, etc.
 
@@ -58,12 +59,26 @@ npm install @homebridge-plugins/homebridge-tuya
 
 ## Configuration
 
-There are two types of projects: `Custom` and `Smart Home`.
-The difference between them is:
+There are three connection methods:
+
+- `Smart Life / Tuya Smart QR login` (`projectType: "3"`) discovers the homes and devices shared by either app. Individual users do not create a Tuya IoT developer project and do not enter an Access ID or Access Secret.
 - The `Custom` project pulls devices from the project's assets.
 - The `Smart Home` project pulls devices from the user's home in the Tuya app.
 
-If you are a personal user and are unsure which one to choose, please use the `Smart Home` project.
+For a personal account, use QR login. The two developer-project modes remain available for existing installations and services that require their APIs.
+
+### Smart Life / Tuya Smart QR login
+
+1. In Smart Life or Tuya Smart, open **Me → Settings → Account and Security** and copy **User Code**.
+2. In the plugin settings, choose **Smart Life / Tuya Smart QR login**, select the matching app, and enter that User Code.
+3. Select **Start QR login**, scan the fresh QR code with the selected app, and confirm the authorization.
+4. Save the configuration and restart Homebridge.
+
+The plugin stores the refresh token in Homebridge's persist directory with owner-only file permissions. It is not stored in `config.json`.
+
+> Compatibility note: this branch defaults to Home Assistant's public Tuya client ID and `haauthorize` QR schema. Users still need no developer account or secret, but authorizing an account already connected to Home Assistant may replace or invalidate Home Assistant's Tuya session. Optional integration-specific values can be supplied with `TUYA_SHARING_CLIENT_ID` and `TUYA_SHARING_SCHEMA`.
+
+#### Developer-project modes
 
 Before you can configure, you must go to the [Tuya IoT Platform](https://iot.tuya.com):
 - Create a cloud development project, and select the data center where your app account is located. See [Mappings Between OEM App Accounts and Data Centers](https://developer.tuya.com/en/docs/iot/oem-app-data-center-distributed?id=Kafi0ku9l07qb) or [Countries Regions and Tuya Data Center](https://github.com/tuya/tuya-home-assistant/wiki/Countries-Regions-and-Tuya-Data-Center)
@@ -112,8 +127,9 @@ Garage door controllers that keep `switch_1=true` can opt in to contact-sensor-o
 
 
 ## Limitations
-- **⚠️Don't forget to extend the API trial period every 6 months. Maybe you can set up a reminder in calendar.**
-- Using the same app account for multiple Homebridge/HomeAssistant instances is not supported. Please use separate app accounts for each instance.
+- QR account-sharing currently operates in Home Assistant compatibility mode. It is not an official Home Assistant component, and token coexistence is not guaranteed when both systems authorize the same Tuya account.
+- Developer-project users must extend the Tuya API trial period when required. QR account-sharing users have no personal cloud-project trial to renew.
+- Some services outside the device-sharing API, particularly product-specific IR, camera, and lock APIs, still require live permission testing even though their existing accessory mappings are retained.
 - The plugin requires an internet connection to the Tuya Cloud and does not support the LAN protocol. See [#90](https://github.com/homebridge-plugins/homebridge-tuya/issues/90) for more information.
 
 ## FAQ

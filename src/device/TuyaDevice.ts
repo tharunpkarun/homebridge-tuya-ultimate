@@ -42,11 +42,25 @@ export type TuyaDeviceSchema = {
   mode: TuyaDeviceSchemaMode;
   type: TuyaDeviceSchemaType;
   property: TuyaDeviceSchemaProperty;
+  /** Tuya account-sharing hint: incremental (`sum`) or absolute (`minux`). */
+  report_type?: 'sum' | 'minux' | 'un_known' | string;
 };
 
 export type TuyaDeviceStatus = {
   code: string;
-  value: string | number | boolean;
+  value: string | number | boolean | object;
+};
+
+export type TuyaSharingLocalStrategy = {
+  value_convert: string;
+  status_code: string;
+  config_item: {
+    statusFormat: string;
+    valueDesc: string;
+    valueType: string;
+    enumMappingMap?: Record<string, { value?: unknown }>;
+    pid?: string;
+  };
 };
 
 export type TuyaIRRemoteKeyListItem = {
@@ -121,6 +135,10 @@ export default class TuyaDevice {
   sub!: boolean;
   parent_id?: string;
   remote_keys?: TuyaIRRemoteKeys;
+  support_local?: boolean;
+  local_strategy?: Record<number, TuyaSharingLocalStrategy>;
+  node_id?: string;
+  set_up?: boolean;
 
   constructor(obj: Partial<TuyaDevice>) {
     Object.assign(this, obj);

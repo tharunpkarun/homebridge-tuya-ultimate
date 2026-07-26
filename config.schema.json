@@ -4,7 +4,7 @@
     "singular": true,
     "headerDisplay": "",
     "footerDisplay": "",
-    "customUi": false,
+    "customUi": true,
     "schema": {
         "type": "object",
         "properties": {
@@ -16,7 +16,7 @@
             "options": {
                 "title": "Project Info",
                 "type": "object",
-                "required": ["projectType", "accessId", "accessKey", "weatherAPI"],
+                "required": ["projectType", "weatherAPI"],
                 "properties": {
                     "projectType": {
                         "title": "Project Type (Development Method)",
@@ -34,6 +34,12 @@
                                 "enum": [
                                     "2"
                                 ]
+                            },
+                            {
+                                "title": "Smart Life / Tuya Smart QR login (no developer account)",
+                                "enum": [
+                                    "3"
+                                ]
                             }
                         ]
                     },
@@ -44,13 +50,43 @@
                     },
                     "accessId": {
                         "title": "Access ID",
-                        "type": "string"
+                        "type": "string",
+                        "condition": {
+                            "functionBody": "return model.options.projectType === '1' || model.options.projectType === '2';"
+                        }
                     },
                     "accessKey": {
                         "title": "Access Secret",
                         "type": "string",
                         "x-schema-form": {
                             "type": "password"
+                        },
+                        "condition": {
+                            "functionBody": "return model.options.projectType === '1' || model.options.projectType === '2';"
+                        }
+                    },
+                    "userCode": {
+                        "title": "App User Code",
+                        "description": "Find this in Smart Life or Tuya Smart under Settings > Account and Security > User Code.",
+                        "type": "string",
+                        "condition": {
+                            "functionBody": "return model.options.projectType === '3';"
+                        }
+                    },
+                    "clientId": {
+                        "title": "Integration Client ID",
+                        "description": "Optional advanced override. Blank uses Home Assistant's public client ID in compatibility mode.",
+                        "type": "string",
+                        "condition": {
+                            "functionBody": "return model.options.projectType === '3';"
+                        }
+                    },
+                    "qrSchema": {
+                        "title": "Integration QR Schema",
+                        "description": "Optional advanced override. Blank uses Home Assistant's haauthorize schema in compatibility mode.",
+                        "type": "string",
+                        "condition": {
+                            "functionBody": "return model.options.projectType === '3';"
                         }
                     },
                     "countryCode": {
@@ -97,7 +133,7 @@
                             }
                         ],
                         "condition": {
-                            "functionBody": "return model.options.projectType === '2';"
+                            "functionBody": "return model.options.projectType === '2' || model.options.projectType === '3';"
                         }
                     },
                     "homeWhitelist": {
@@ -106,10 +142,10 @@
                         "type": "array",
                         "items": {
                             "title": "Home ID",
-                            "type": "integer"
+                            "type": ["integer", "string"]
                         },
                         "condition": {
-                            "functionBody": "return model.options.projectType === '2';"
+                            "functionBody": "return model.options.projectType === '2' || model.options.projectType === '3';"
                         }
                     },
                     "deviceOverrides": {
@@ -413,7 +449,10 @@
                 "options.countryCode",
                 "options.username",
                 "options.password",
-                "options.appSchema"
+                "options.appSchema",
+                "options.userCode",
+                "options.clientId",
+                "options.qrSchema"
             ]
         },
         {

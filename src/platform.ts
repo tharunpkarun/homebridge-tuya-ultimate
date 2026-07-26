@@ -2,19 +2,23 @@ import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, 
 import { Validator } from 'jsonschema';
 import path from 'path';
 import fs from 'fs';
+import Crypto from 'crypto';
 
 import TuyaDevice, { TuyaDeviceStatus } from './device/TuyaDevice';
 import TuyaDeviceManager from './device/TuyaDeviceManager';
 import TuyaCustomDeviceManager from './device/TuyaCustomDeviceManager';
 import TuyaHomeDeviceManager from './device/TuyaHomeDeviceManager';
+import TuyaSharingDeviceManager from './device/TuyaSharingDeviceManager';
 
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
-import { TuyaPlatformConfig, customOptionsSchema, homeOptionsSchema } from './config';
+import { TuyaPlatformConfig, accountOptionsSchema, customOptionsSchema, homeOptionsSchema } from './config';
 import AccessoryFactory from './accessory/AccessoryFactory';
 import BaseAccessory from './accessory/BaseAccessory';
 import { sanitizeName } from './util/util';
 import TuyaOpenAPI, { LOGIN_ERROR_MESSAGES } from './core/TuyaOpenAPI';
 import { initLogger } from './util/Logger';
+import TuyaSharingAPI from './core/TuyaSharingAPI';
+import { DEFAULT_CLIENT_ID, TuyaSharingCredentialStore } from './core/TuyaSharingAuth';
 
 
 /**
@@ -43,6 +47,8 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       result = new Validator().validate(this.options, customOptionsSchema);
     } else if (this.options.projectType === '2') {
       result = new Validator().validate(this.options, homeOptionsSchema);
+    } else if (this.options.projectType === '3') {
+      result = new Validator().validate(this.options, accountOptionsSchema);
     } else {
       this.log.error(`Unsupported projectType: ${this.options['projectType']}, exit.`);
       return false;
@@ -154,6 +160,8 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       devices = await this.initCustomProject();
     } else if (this.options.projectType === '2') {
       devices = await this.initHomeProject();
+    } else if (this.options.projectType === '3') {
+      devices = await this.initAccountProject();
     } else {
       this.log.warn(`Unsupported projectType: ${this.config.options.projectType}.`);
     }
@@ -433,6 +441,75 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
     return devices;
   }
 
+  async initAccountProject() {
+    if (this.options.projectType !== '3') {
+      return undefined;
+    }
+    const options = this.options;
+
+    const clientId = options.clientId || process.env.TUYA_SHARING_CLIENT_ID || DEFAULT_CLIENT_ID;
+
+    const credentialFile = path.join(
+      this.api.user.persistPath(),
+      `TuyaSharing.${Crypto.createHash('sha256').update(options.userCode).digest('hex').slice(0, 16)}.json`,
+    );
+    const store = new TuyaSharingCredentialStore(credentialFile);
+    const credentials = await store.load();
+    if (!credentials
+      || credentials.client_id !== clientId
+      || credentials.user_code !== options.userCode
+      || credentials.app_schema !== options.appSchema) {
+      this.log.warn(
+        'Tuya account authorization is required. Open this plugin\'s settings and scan a new QR code with %s.',
+        options.appSchema === 'smartlife' ? 'Smart Life' : 'Tuya Smart',
+      );
+      return undefined;
+    }
+
+    const debugMode = options.debug
+      && ((options.debugLevel ?? '').length > 0 ? options.debugLevel?.includes('api') : true);
+    const api = new TuyaSharingAPI({
+      credentials,
+      onTokenUpdate: async token => {
+        credentials.token_info = token;
+        await store.save(credentials);
+      },
+    });
+    const deviceManager = new TuyaSharingDeviceManager(api, debugMode);
+
+    this.log.info('Fetching Tuya account home list.');
+    const homeResponse = await deviceManager.getHomeList();
+    if (!homeResponse.success) {
+      this.log.error('Fetching home list failed. code=%s, msg=%s', homeResponse.code, homeResponse.msg);
+      return undefined;
+    }
+
+    const homeWhitelist = options.homeWhitelist?.map(String);
+    const homeIDs = (homeResponse.result as Array<{ home_id: string; name: string }>)
+      .filter(home => !homeWhitelist || homeWhitelist.includes(home.home_id))
+      .map(home => {
+        this.log.info('Got home_id=%s, name=%s', home.home_id, home.name);
+        return home.home_id;
+      });
+    deviceManager.ownerIDs = homeIDs;
+
+    this.log.info('Fetching Tuya account device list.');
+    const devices = await deviceManager.updateDevices(homeIDs);
+    for (const homeID of homeIDs) {
+      devices.push(...await deviceManager.getSceneList(homeID));
+    }
+    deviceManager.mq.start();
+    this.deviceManager = deviceManager;
+
+    if (options.generateWeatherAccessory) {
+      const targetDevice = devices.find(device => device.lat && device.lon);
+      if (targetDevice) {
+        devices.push(this.createWeatherDevice(targetDevice, homeResponse.result));
+      }
+    }
+    return devices;
+  }
+
   addAccessory(device: TuyaDevice) {
     if (device.category === 'hidden') {
       this.log.info('Hide Accessory:', device.name);
@@ -534,4 +611,3 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
     return virtualDevice;
   }
 }
-
