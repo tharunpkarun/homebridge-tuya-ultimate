@@ -6,7 +6,7 @@ body:
   id: prerequisite
   attributes:
     label: Prerequisite
-    description: Have you read the [Readme - FAQ](https://github.com/homebridge-plugins/homebridge-tuya#faq) and [Readme - Troubleshooting](https://github.com/homebridge-plugins/homebridge-tuya#troubleshooting) section?
+    description: Have you read the [Readme - FAQ](https://github.com/tharunpkarun/homebridge-tuya-ultimate#faq) and [Readme - Troubleshooting](https://github.com/tharunpkarun/homebridge-tuya-ultimate#troubleshooting) section?
     options:
       - label: Yes, I've read the readme completely.
         required: true

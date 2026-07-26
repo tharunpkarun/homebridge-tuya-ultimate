@@ -43,7 +43,7 @@ jobs:
   determine-release-type:
     name: Determine Release Type
     runs-on: ubuntu-latest
-    if: ${{ github.repository == 'homebridge-plugins/homebridge-tuya' }}
+    if: ${{ github.repository == 'tharunpkarun/homebridge-tuya-ultimate' }}
     outputs:
       release_type: ${{ steps.release-type.outputs.type }}
       npm_tag: ${{ steps.release-type.outputs.tag }}

@@ -1,6 +1,6 @@
 <!-- markdownlint-disable MD013 MD033 -->
 
-<h1 align="center">Homebridge Tuya</h1>
+<h1 align="center">Homebridge Tuya Ultimate</h1>
 
 <p align="center">
   Bring Smart Life and Tuya Smart devices into Apple Home.<br>
@@ -8,16 +8,10 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@homebridge-plugins/homebridge-tuya"><img alt="npm version" src="https://img.shields.io/npm/v/@homebridge-plugins/homebridge-tuya.svg"></a>
-  <a href="https://www.npmjs.com/package/@homebridge-plugins/homebridge-tuya"><img alt="npm downloads" src="https://img.shields.io/npm/dt/@homebridge-plugins/homebridge-tuya.svg"></a>
-  <a href="https://github.com/homebridge-plugins/homebridge-tuya/actions/workflows/build.yml"><img alt="Build and lint" src="https://github.com/homebridge-plugins/homebridge-tuya/actions/workflows/build.yml/badge.svg"></a>
-  <img alt="Node.js versions" src="https://img.shields.io/node/v/@homebridge-plugins/homebridge-tuya.svg">
+  <a href="https://github.com/tharunpkarun/homebridge-tuya-ultimate/actions/workflows/build.yml"><img alt="Build and lint" src="https://github.com/tharunpkarun/homebridge-tuya-ultimate/actions/workflows/build.yml/badge.svg"></a>
+  <img alt="Node.js versions" src="https://img.shields.io/badge/Node.js-20%20%7C%2022%20%7C%2024-339933?logo=nodedotjs&amp;logoColor=white">
   <img alt="Homebridge" src="https://img.shields.io/badge/Homebridge-1.8%20%7C%202.x-491F59?logo=homebridge&amp;logoColor=white">
-  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/npm/l/@homebridge-plugins/homebridge-tuya.svg"></a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/homebridge/homebridge/wiki/Verified-Plugins"><img alt="Verified by Homebridge" src="https://img.shields.io/badge/Homebridge-Verified-491F59?style=for-the-badge&amp;logo=homebridge&amp;logoColor=white"></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/License-MIT-blue.svg"></a>
 </p>
 
 > [!NOTE]
@@ -29,9 +23,9 @@
 | [📦 Installation](#installation) | [🏠 Supported devices](#supported-devices) | [🔐 Security](#security-and-privacy) |
 | [📱 QR authorization](#qr-authorization) | [⚙️ Configuration](#configuration) | [🤝 Contribute](#development-and-contributing) |
 
-## Why Homebridge Tuya?
+## Why Homebridge Tuya Ultimate?
 
-Tuya devices are sold under thousands of brands and product names, but most of them expose a smaller set of standard Tuya categories and datapoints. Homebridge Tuya discovers those definitions, converts them into native HomeKit services, and keeps them updated through Tuya's cloud message stream.
+Tuya devices are sold under thousands of brands and product names, but most of them expose a smaller set of standard Tuya categories and datapoints. Homebridge Tuya Ultimate discovers those definitions, converts them into native HomeKit services, and keeps them updated through Tuya's cloud message stream.
 
 The QR connection removes the most frustrating part of a traditional Tuya setup: every Homebridge user no longer needs to create, link, authorize, and periodically renew a personal Tuya cloud project. Existing `Custom` and `Smart Home` project configurations remain supported for installations that already use them or need APIs outside the account-sharing surface.
 
@@ -50,24 +44,27 @@ The QR connection removes the most frustrating part of a traditional Tuya setup:
 
 Before installing, remove the old `homebridge-tuya-platform` package if it is present. Both plugins use compatible platform concepts but should not run against the same accessories simultaneously.
 
-### Homebridge UI
-
-1. Open **Homebridge → Plugins**.
-2. Search for `@homebridge-plugins/homebridge-tuya`.
-3. Install **Homebridge Tuya**.
-4. Open the plugin settings and follow [Quick start](#quick-start).
-
 ### npm
 
+Once the package is published to npm:
+
 ```bash
-npm install -g @homebridge-plugins/homebridge-tuya
+npm install -g homebridge-tuya-ultimate
 ```
+
+Until then, install the current GitHub version from a terminal on the Homebridge host:
+
+```bash
+npm install -g github:tharunpkarun/homebridge-tuya-ultimate
+```
+
+Then restart Homebridge, open the plugin settings, and follow [Quick start](#quick-start).
 
 ## Quick start
 
 1. Add and test the devices in **Tuya Smart** or **Smart Life** first.
 2. In that app, open **Me → Settings → Account and Security → User Code** and copy the User Code.
-3. Open Homebridge Tuya settings.
+3. Open Homebridge Tuya Ultimate settings.
 4. Select **Smart Life / Tuya Smart QR login (no developer account)**.
 5. Select the exact app containing the devices and enter its User Code.
 6. Select **Start QR login**.
@@ -121,7 +118,7 @@ Both accounts then reach the same devices, while each integration owns a differe
 flowchart LR
   A[Tuya Smart or Smart Life] -->|QR approval| B[Encrypted account token]
   B --> C[Tuya account-sharing API]
-  C -->|Homes, devices, schemas, scenes| D[Homebridge Tuya]
+  C -->|Homes, devices, schemas, scenes| D[Homebridge Tuya Ultimate]
   C -->|MQTT live reports| D
   D -->|Category and DP mapping| E[HomeKit accessories]
   E --> F[Apple Home]
@@ -568,8 +565,8 @@ Issues and pull requests are welcome.
 ### Development setup
 
 ```bash
-git clone https://github.com/homebridge-plugins/homebridge-tuya.git
-cd homebridge-tuya
+git clone https://github.com/tharunpkarun/homebridge-tuya-ultimate.git
+cd homebridge-tuya-ultimate
 npm install
 npm run lint
 npm run build
@@ -603,7 +600,7 @@ The automated tests cover:
 
 ## Project lineage and attribution
 
-Homebridge Tuya is derived from [`0x5e/homebridge-tuya-platform`](https://github.com/0x5e/homebridge-tuya-platform) and maintained in the [`homebridge-plugins/homebridge-tuya`](https://github.com/homebridge-plugins/homebridge-tuya) project.
+Homebridge Tuya Ultimate is derived from [`0x5e/homebridge-tuya-platform`](https://github.com/0x5e/homebridge-tuya-platform) and the official [`homebridge-plugins/homebridge-tuya`](https://github.com/homebridge-plugins/homebridge-tuya) project. This fork adds QR account-sharing authorization and is maintained at [`tharunpkarun/homebridge-tuya-ultimate`](https://github.com/tharunpkarun/homebridge-tuya-ultimate).
 
 The QR account-sharing transport and raw datapoint conversion behavior are based on Tuya's MIT-licensed [`tuya-device-sharing-sdk`](https://github.com/tuya/tuya-device-sharing-sdk). See [Third-party Notices](THIRD_PARTY_NOTICES.md).
 
@@ -646,8 +643,8 @@ The QR account-sharing transport and raw datapoint conversion behavior are based
 This project is available under the [MIT License](LICENSE). See [Third-party Notices](THIRD_PARTY_NOTICES.md) for the Tuya Device Sharing SDK attribution.
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@homebridge-plugins/homebridge-tuya">npm</a> ·
-  <a href="https://github.com/homebridge-plugins/homebridge-tuya/issues">Issues</a> ·
-  <a href="https://github.com/homebridge-plugins/homebridge-tuya/pulls">Pull requests</a> ·
+  <a href="https://github.com/tharunpkarun/homebridge-tuya-ultimate">GitHub</a> ·
+  <a href="https://github.com/tharunpkarun/homebridge-tuya-ultimate/issues">Issues</a> ·
+  <a href="https://github.com/tharunpkarun/homebridge-tuya-ultimate/pulls">Pull requests</a> ·
   <a href="CHANGELOG.md">Changelog</a>
 </p>

@@ -1,23 +1,22 @@
 {
-  "name": "@homebridge-plugins/homebridge-tuya",
-  "displayName": "Homebridge Tuya",
+  "name": "homebridge-tuya-ultimate",
+  "displayName": "Homebridge Tuya Ultimate",
   "version": "2.5.1",
-  "description": "Forked from 0x5e/homebridge-tuya-platform, with a focus on fixing bugs and adding new device support.",
+  "description": "Tuya Smart and Smart Life integration for Homebridge with QR account authorization and live cloud updates.",
   "license": "MIT",
+  "author": {
+    "name": "Tharun P Karun",
+    "email": "tpk@tharun.me",
+    "url": "https://github.com/tharunpkarun"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/homebridge-plugins/homebridge-tuya"
+    "url": "git+https://github.com/tharunpkarun/homebridge-tuya-ultimate.git"
   },
-  "homepage": "https://github.com/homebridge-plugins/homebridge-tuya#readme",
+  "homepage": "https://github.com/tharunpkarun/homebridge-tuya-ultimate#readme",
   "bugs": {
-    "url": "https://github.com/homebridge-plugins/homebridge-tuya/issues"
+    "url": "https://github.com/tharunpkarun/homebridge-tuya-ultimate/issues"
   },
-  "funding": [
-    {
-      "type": "github",
-      "url": "https://github.com/sponsors/tassy-h"
-    }
-  ],
   "engines": {
     "homebridge": "^1.8.0 || ^2.0.0",
     "node": "^20 || ^22 || ^24 || ^25"

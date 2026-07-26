@@ -241,7 +241,7 @@ class BaseAccessory {
       this.log.warn('Product Category: %s', this.device.category);
       this.log.warn('Missing one of the required schema: %s', codes);
       this.log.warn('Please switch device control mode to "DP Instruction", and set `deviceOverrides` manually.');
-      this.log.warn('Detail information: https://github.com/homebridge-plugins/homebridge-tuya#faq');
+      this.log.warn('Detail information: https://github.com/tharunpkarun/homebridge-tuya-ultimate#faq');
       result = false;
     }
 

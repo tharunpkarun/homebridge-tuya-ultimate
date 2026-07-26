@@ -225,6 +225,6 @@ This version has been completely rewritten in TypeScript, brings a lot of bug fi
 
 
 ### Removed
-- Remove `debug` option. Silence logs for users. For debugging, please refer to [troubleshooting](https://github.com/homebridge-plugins/homebridge-tuya#troubleshooting).
+- Remove `debug` option. Silence logs for users. For debugging, please refer to [troubleshooting](https://github.com/tharunpkarun/homebridge-tuya-ultimate#troubleshooting).
 - Remove `lang` option.
 - Remove `username` and `password` options for `Custom` project. User will be created and authorized automatically. (#11)
