@@ -13,6 +13,7 @@
 ### Fixed
  - Map `infrared_ac` virtual remotes to the thermostat-style IR air-conditioner accessory instead of generic IR button switches.
  - Build the runtime automatically when the plugin is installed directly from GitHub.
+ - Store QR credentials where both the custom UI and Homebridge runtime can access them, with automatic migration from the earlier UI location.
 
 ### Security
  - Account tokens are kept outside `config.json` in a `0600` persist file and are renewed atomically.

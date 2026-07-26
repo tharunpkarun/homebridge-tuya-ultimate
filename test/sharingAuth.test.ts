@@ -5,6 +5,8 @@ import path from 'path';
 import {
   DEFAULT_CLIENT_ID,
   DEFAULT_SCHEMA,
+  legacySharingCredentialFile,
+  sharingCredentialFile,
   TuyaSharingCredentials,
   TuyaSharingCredentialStore,
   TuyaSharingLogin,
@@ -18,6 +20,13 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe('Tuya account-sharing QR login', () => {
+  test('uses Homebridge persist storage for QR credentials', () => {
+    expect(sharingCredentialFile('/homebridge', 'private-user-code'))
+      .toMatch(/^\/homebridge\/persist\/TuyaSharing\.[a-f0-9]{16}\.json$/);
+    expect(legacySharingCredentialFile('/homebridge', 'private-user-code'))
+      .toMatch(/^\/homebridge\/TuyaSharing\.[a-f0-9]{16}\.json$/);
+  });
+
   test('defaults to Home Assistant compatibility identity', async () => {
     const fetchMock = jest.fn().mockResolvedValue(jsonResponse({
       success: true,

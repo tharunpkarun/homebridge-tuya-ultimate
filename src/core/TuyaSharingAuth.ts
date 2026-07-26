@@ -1,10 +1,23 @@
 import fs from 'fs';
 import path from 'path';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 
 const DEFAULT_LOGIN_ENDPOINT = 'https://apigw.iotbing.com';
 const DEFAULT_CLIENT_ID = 'HA_3y9q4ak7g4ephrvke';
 const DEFAULT_SCHEMA = 'haauthorize';
+
+function credentialFilename(userCode: string): string {
+  const id = createHash('sha256').update(userCode).digest('hex').slice(0, 16);
+  return `TuyaSharing.${id}.json`;
+}
+
+export function sharingCredentialFile(storagePath: string, userCode: string): string {
+  return path.join(storagePath, 'persist', credentialFilename(userCode));
+}
+
+export function legacySharingCredentialFile(storagePath: string, userCode: string): string {
+  return path.join(storagePath, credentialFilename(userCode));
+}
 
 export type TuyaSharingCredentials = {
   client_id: string;

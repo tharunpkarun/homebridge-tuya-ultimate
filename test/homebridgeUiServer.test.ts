@@ -8,6 +8,7 @@ jest.mock('@homebridge/plugin-ui-utils', () => ({
 // The Homebridge custom UI server is JavaScript because it runs as a separate process.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { createHandlers, credentialFile } = require('../homebridge-ui/server.js');
+import { legacySharingCredentialFile } from '../src/core/TuyaSharingAuth';
 
 const credentials = {
   client_id: 'client-1',
@@ -96,8 +97,22 @@ describe('Homebridge custom UI server', () => {
     const second = credentialFile(storagePath, 'private-user-code');
 
     expect(first).toBe(second);
+    expect(path.dirname(first)).toBe(path.join(storagePath, 'persist'));
     expect(first).toMatch(/TuyaSharing\.[a-f0-9]{16}\.json$/);
     expect(first).not.toContain('private-user-code');
+  });
+
+  test('migrates credentials written by the earlier UI storage layout', async () => {
+    const legacyFile = legacySharingCredentialFile(storagePath, 'user-1');
+    MockCredentialStore.values.set(legacyFile, credentials);
+
+    await expect(handlers().status({
+      userCode: 'user-1',
+      clientId: 'client-1',
+      appSchema: 'smartlife',
+    })).resolves.toMatchObject({ connected: true, matchesConfiguration: true });
+
+    expect(MockCredentialStore.values.get(credentialFile(storagePath, 'user-1'))).toEqual(credentials);
   });
 
   test('returns package information for the dashboard', async () => {

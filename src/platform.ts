@@ -2,7 +2,6 @@ import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, 
 import { Validator } from 'jsonschema';
 import path from 'path';
 import fs from 'fs';
-import Crypto from 'crypto';
 
 import TuyaDevice, { TuyaDeviceStatus } from './device/TuyaDevice';
 import TuyaDeviceManager from './device/TuyaDeviceManager';
@@ -18,7 +17,12 @@ import { sanitizeName } from './util/util';
 import TuyaOpenAPI, { LOGIN_ERROR_MESSAGES } from './core/TuyaOpenAPI';
 import { initLogger } from './util/Logger';
 import TuyaSharingAPI from './core/TuyaSharingAPI';
-import { DEFAULT_CLIENT_ID, TuyaSharingCredentialStore } from './core/TuyaSharingAuth';
+import {
+  DEFAULT_CLIENT_ID,
+  legacySharingCredentialFile,
+  sharingCredentialFile,
+  TuyaSharingCredentialStore,
+} from './core/TuyaSharingAuth';
 
 
 /**
@@ -449,12 +453,18 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
 
     const clientId = options.clientId || process.env.TUYA_SHARING_CLIENT_ID || DEFAULT_CLIENT_ID;
 
-    const credentialFile = path.join(
-      this.api.user.persistPath(),
-      `TuyaSharing.${Crypto.createHash('sha256').update(options.userCode).digest('hex').slice(0, 16)}.json`,
-    );
+    const storagePath = this.api.user.storagePath();
+    const credentialFile = sharingCredentialFile(storagePath, options.userCode);
     const store = new TuyaSharingCredentialStore(credentialFile);
-    const credentials = await store.load();
+    let credentials = await store.load();
+    if (!credentials) {
+      const legacyStore = new TuyaSharingCredentialStore(legacySharingCredentialFile(storagePath, options.userCode));
+      credentials = await legacyStore.load();
+      if (credentials) {
+        await store.save(credentials);
+        this.log.info('Migrated Tuya account credentials into Homebridge persist storage.');
+      }
+    }
     if (!credentials
       || credentials.client_id !== clientId
       || credentials.user_code !== options.userCode

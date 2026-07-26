@@ -1,6 +1,3 @@
-const Crypto = require('node:crypto');
-const path = require('node:path');
-
 const { HomebridgePluginUiServer, RequestError } = require('@homebridge/plugin-ui-utils');
 const QRCode = require('qrcode');
 
@@ -8,6 +5,8 @@ const {
   DEFAULT_CLIENT_ID,
   DEFAULT_LOGIN_ENDPOINT,
   DEFAULT_SCHEMA,
+  legacySharingCredentialFile,
+  sharingCredentialFile,
   TuyaSharingCredentialStore,
   TuyaSharingLogin,
 } = require('../dist/core/TuyaSharingAuth');
@@ -15,8 +14,7 @@ const TuyaSharingAPI = require('../dist/core/TuyaSharingAPI').default;
 const packageJson = require('../package.json');
 
 function credentialFile(storagePath, userCode) {
-  const id = Crypto.createHash('sha256').update(userCode).digest('hex').slice(0, 16);
-  return path.join(storagePath, `TuyaSharing.${id}.json`);
+  return sharingCredentialFile(storagePath, userCode);
 }
 
 function required(value, label) {
@@ -41,7 +39,16 @@ function createHandlers(storagePath, dependencies = {}) {
   }
 
   async function loadCredentials(userCode) {
-    return storeFor(userCode).load();
+    const store = storeFor(userCode);
+    const credentials = await store.load();
+    if (credentials) return credentials;
+
+    const legacyStore = new CredentialStore(legacySharingCredentialFile(storagePath, userCode));
+    const legacyCredentials = await legacyStore.load();
+    if (legacyCredentials) {
+      await store.save(legacyCredentials);
+    }
+    return legacyCredentials;
   }
 
   return {
@@ -108,7 +115,7 @@ function createHandlers(storagePath, dependencies = {}) {
       const clientId = payload.clientId || process.env.TUYA_SHARING_CLIENT_ID || DEFAULT_CLIENT_ID;
       const appSchema = payload.appSchema === 'smartlife' ? 'smartlife' : 'tuyaSmart';
       const store = storeFor(userCode);
-      const credentials = await store.load();
+      const credentials = await loadCredentials(userCode);
       if (!credentials) {
         return { connected: false, reason: 'not_authorized', homes: [], devices: [] };
       }
