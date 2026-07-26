@@ -44,15 +44,9 @@ The QR connection removes the most frustrating part of a traditional Tuya setup:
 
 Before installing, remove the old `homebridge-tuya-platform` package if it is present. Both plugins use compatible platform concepts but should not run against the same accessories simultaneously.
 
-### npm
+### Install from GitHub
 
-Once the package is published to npm:
-
-```bash
-npm install -g homebridge-tuya-ultimate
-```
-
-Until then, install the current GitHub version from a terminal on the Homebridge host:
+Run this command in a terminal on the Homebridge host:
 
 ```bash
 npm install -g github:tharunpkarun/homebridge-tuya-ultimate
@@ -65,16 +59,16 @@ Then restart Homebridge, open the plugin settings, and follow [Quick start](#qui
 1. Add and test the devices in **Tuya Smart** or **Smart Life** first.
 2. In that app, open **Me → Settings → Account and Security → User Code** and copy the User Code.
 3. Open Homebridge Tuya Ultimate settings.
-4. Select **Smart Life / Tuya Smart QR login (no developer account)**.
+4. Open **Account** and select **App QR authorization**.
 5. Select the exact app containing the devices and enter its User Code.
-6. Select **Start QR login**.
+6. Select **Generate login QR code**.
 7. Scan the new QR code with the selected app and approve the authorization.
-8. Wait for **Connected**, save the configuration, and restart Homebridge.
+8. Wait for **Authorized**, then restart Homebridge.
 
 The plugin discovers every visible Tuya Home unless `homeWhitelist` is configured. Supported devices and enabled Tap-to-Run scenes then appear as HomeKit accessories.
 
 > [!TIP]
-> Tuya QR tokens are short-lived. If the app reports that a code has expired, select **Start QR login** again and scan the newly generated code. A screenshot of an earlier QR code cannot be reused.
+> Tuya QR tokens are short-lived. If the app reports that a code has expired, select **Generate a fresh code** and scan the newly generated code. A screenshot of an earlier QR code cannot be reused.
 
 ## Reliable coexistence with Home Assistant
 
