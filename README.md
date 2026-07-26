@@ -8,6 +8,8 @@
 </p>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/homebridge-tuya-ultimate"><img alt="npm version" src="https://img.shields.io/npm/v/homebridge-tuya-ultimate?logo=npm&amp;color=CB3837"></a>
+  <a href="https://www.npmjs.com/package/homebridge-tuya-ultimate"><img alt="npm downloads" src="https://img.shields.io/npm/dm/homebridge-tuya-ultimate?logo=npm&amp;color=CB3837"></a>
   <a href="https://github.com/tharunpkarun/homebridge-tuya-ultimate/actions/workflows/build.yml"><img alt="Build and lint" src="https://github.com/tharunpkarun/homebridge-tuya-ultimate/actions/workflows/build.yml/badge.svg"></a>
   <img alt="Node.js versions" src="https://img.shields.io/badge/Node.js-20%20%7C%2022%20%7C%2024-339933?logo=nodedotjs&amp;logoColor=white">
   <img alt="Homebridge" src="https://img.shields.io/badge/Homebridge-1.8%20%7C%202.x-491F59?logo=homebridge&amp;logoColor=white">
@@ -44,15 +46,30 @@ The QR connection removes the most frustrating part of a traditional Tuya setup:
 
 Before installing, remove the old `homebridge-tuya-platform` package if it is present. Both plugins use compatible platform concepts but should not run against the same accessories simultaneously.
 
-### Install from GitHub
+### Homebridge UI
+
+1. Open **Homebridge UI → Plugins**.
+2. Search for **Homebridge Tuya Ultimate**.
+3. Select **Install**.
+4. Open the plugin settings and continue with [Quick start](#quick-start).
+
+### Command line
 
 Run this command in a terminal on the Homebridge host:
 
 ```bash
-npm install -g github:tharunpkarun/homebridge-tuya-ultimate
+npm install -g homebridge-tuya-ultimate
 ```
 
 Then restart Homebridge, open the plugin settings, and follow [Quick start](#quick-start).
+
+### Development builds
+
+GitHub installations track unreleased source code and are intended for testing fixes before their next npm release:
+
+```bash
+npm install -g github:tharunpkarun/homebridge-tuya-ultimate
+```
 
 ## Quick start
 

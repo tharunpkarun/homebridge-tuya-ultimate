@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## [2.6.0] - (2026.7.26)
+
 ### Added
  - Smart Life and Tuya Smart QR account authorization without per-user Tuya IoT developer credentials.
  - Encrypted Tuya device-sharing API transport, token renewal, account MQTT, raw datapoint conversion strategies, scenes, and Config UI onboarding.

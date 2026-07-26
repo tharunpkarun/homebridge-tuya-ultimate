@@ -1,7 +1,7 @@
 {
   "name": "homebridge-tuya-ultimate",
   "displayName": "Homebridge Tuya Ultimate",
-  "version": "2.5.1",
+  "version": "2.6.0",
   "description": "Tuya Smart and Smart Life integration for Homebridge with QR account authorization and live cloud updates.",
   "license": "MIT",
   "author": {
@@ -16,6 +16,9 @@
   "homepage": "https://github.com/tharunpkarun/homebridge-tuya-ultimate#readme",
   "bugs": {
     "url": "https://github.com/tharunpkarun/homebridge-tuya-ultimate/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "homebridge": "^1.8.0 || ^2.0.0",
