@@ -1,6 +1,6 @@
 <!-- markdownlint-disable MD013 MD033 -->
 
-<h1 align="center">Homebridge Tuya Ultimate</h1>
+<h1 align="center">Tuya Ultimate</h1>
 
 <p align="center">
   Bring Smart Life and Tuya Smart devices into Apple Home.<br>
@@ -25,9 +25,9 @@
 | [📦 Installation](#installation) | [🏠 Supported devices](#supported-devices) | [🔐 Security](#security-and-privacy) |
 | [📱 QR authorization](#qr-authorization) | [⚙️ Configuration](#configuration) | [🤝 Contribute](#development-and-contributing) |
 
-## Why Homebridge Tuya Ultimate?
+## Why Tuya Ultimate?
 
-Tuya devices are sold under thousands of brands and product names, but most of them expose a smaller set of standard Tuya categories and datapoints. Homebridge Tuya Ultimate discovers those definitions, converts them into native HomeKit services, and keeps them updated through Tuya's cloud message stream.
+Tuya devices are sold under thousands of brands and product names, but most of them expose a smaller set of standard Tuya categories and datapoints. Tuya Ultimate discovers those definitions, converts them into native HomeKit services, and keeps them updated through Tuya's cloud message stream.
 
 The QR connection removes the most frustrating part of a traditional Tuya setup: every Homebridge user no longer needs to create, link, authorize, and periodically renew a personal Tuya cloud project. Existing `Custom` and `Smart Home` project configurations remain supported for installations that already use them or need APIs outside the account-sharing surface.
 
@@ -49,7 +49,7 @@ Before installing, remove the old `homebridge-tuya-platform` package if it is pr
 ### Homebridge UI
 
 1. Open **Homebridge UI → Plugins**.
-2. Search for **Homebridge Tuya Ultimate**.
+2. Search for **Tuya Ultimate**.
 3. Select **Install**.
 4. Open the plugin settings and continue with [Quick start](#quick-start).
 
@@ -75,7 +75,7 @@ npm install -g github:tharunpkarun/homebridge-tuya-ultimate
 
 1. Add and test the devices in **Tuya Smart** or **Smart Life** first.
 2. In that app, open **Me → Settings → Account and Security → User Code** and copy the User Code.
-3. Open Homebridge Tuya Ultimate settings.
+3. Open Tuya Ultimate settings.
 4. Open **Account** and select **App QR authorization**.
 5. Select the exact app containing the devices and enter its User Code.
 6. Select **Generate login QR code**.
@@ -129,7 +129,7 @@ Both accounts then reach the same devices, while each integration owns a differe
 flowchart LR
   A[Tuya Smart or Smart Life] -->|QR approval| B[Encrypted account token]
   B --> C[Tuya account-sharing API]
-  C -->|Homes, devices, schemas, scenes| D[Homebridge Tuya Ultimate]
+  C -->|Homes, devices, schemas, scenes| D[Tuya Ultimate]
   C -->|MQTT live reports| D
   D -->|Category and DP mapping| E[HomeKit accessories]
   E --> F[Apple Home]
@@ -611,7 +611,7 @@ The automated tests cover:
 
 ## Project lineage and attribution
 
-Homebridge Tuya Ultimate is derived from [`0x5e/homebridge-tuya-platform`](https://github.com/0x5e/homebridge-tuya-platform) and the official [`homebridge-plugins/homebridge-tuya`](https://github.com/homebridge-plugins/homebridge-tuya) project. This fork adds QR account-sharing authorization and is maintained at [`tharunpkarun/homebridge-tuya-ultimate`](https://github.com/tharunpkarun/homebridge-tuya-ultimate).
+Tuya Ultimate is derived from [`0x5e/homebridge-tuya-platform`](https://github.com/0x5e/homebridge-tuya-platform) and the official [`homebridge-plugins/homebridge-tuya`](https://github.com/homebridge-plugins/homebridge-tuya) project. This fork adds QR account-sharing authorization and is maintained at [`tharunpkarun/homebridge-tuya-ultimate`](https://github.com/tharunpkarun/homebridge-tuya-ultimate).
 
 The QR account-sharing transport and raw datapoint conversion behavior are based on Tuya's MIT-licensed [`tuya-device-sharing-sdk`](https://github.com/tuya/tuya-device-sharing-sdk). See [Third-party Notices](THIRD_PARTY_NOTICES.md).
 

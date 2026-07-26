@@ -217,7 +217,7 @@
           <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 1 3.2 6.4"></path><path d="M4 16v-4h4"></path><path d="M9 12.5 11.2 15 16 9.5"></path></svg>
         </div>
         <div>
-          <h2>Homebridge Tuya Ultimate</h2>
+          <h2>Tuya Ultimate</h2>
           <p>Connect, authorize, inspect, and configure Smart Life and Tuya Smart.</p>
         </div>
       </div>
@@ -758,7 +758,7 @@
       validateAccount()
       await homebridge.updatePluginConfig([platform])
       await homebridge.savePluginConfig()
-      if (message) homebridge.toast.success(message, 'Homebridge Tuya Ultimate')
+      if (message) homebridge.toast.success(message, 'Tuya Ultimate')
       renderAll()
     }
 
@@ -950,7 +950,7 @@
         })
         await refreshAccount(false)
       } catch (error) {
-        homebridge.toast.error(errorMessage(error), 'Could not load Homebridge Tuya Ultimate settings')
+        homebridge.toast.error(errorMessage(error), 'Could not load Tuya Ultimate settings')
         renderAll()
       }
     })

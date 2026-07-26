@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changed
+ - Renamed the user-facing plugin title from Homebridge Tuya Ultimate to Tuya Ultimate.
+
 ## [2.6.0] - (2026.7.26)
 
 ### Added

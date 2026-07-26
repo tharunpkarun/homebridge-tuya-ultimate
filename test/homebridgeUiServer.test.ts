@@ -117,7 +117,7 @@ describe('Homebridge custom UI server', () => {
 
   test('returns package information for the dashboard', async () => {
     await expect(handlers().about()).resolves.toMatchObject({
-      name: 'Homebridge Tuya Ultimate',
+      name: 'Tuya Ultimate',
       packageName: 'homebridge-tuya-ultimate',
       version: expect.any(String),
       repository: 'https://github.com/tharunpkarun/homebridge-tuya-ultimate',
