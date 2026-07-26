@@ -11,6 +11,8 @@ const {
   TuyaSharingCredentialStore,
   TuyaSharingLogin,
 } = require('../dist/core/TuyaSharingAuth');
+const TuyaSharingAPI = require('../dist/core/TuyaSharingAPI').default;
+const packageJson = require('../package.json');
 
 function credentialFile(storagePath, userCode) {
   const id = Crypto.createHash('sha256').update(userCode).digest('hex').slice(0, 16);
@@ -24,17 +26,54 @@ function required(value, label) {
   return value.trim();
 }
 
-function createHandlers(storagePath) {
+function createHandlers(storagePath, dependencies = {}) {
+  const CredentialStore = dependencies.CredentialStore || TuyaSharingCredentialStore;
+  const Login = dependencies.Login || TuyaSharingLogin;
+  const SharingAPI = dependencies.SharingAPI || TuyaSharingAPI;
+  const renderQr = dependencies.renderQr || (content => QRCode.toDataURL(content, {
+    errorCorrectionLevel: 'M',
+    margin: 2,
+    width: 360,
+  }));
+
+  function storeFor(userCode) {
+    return new CredentialStore(credentialFile(storagePath, userCode));
+  }
+
+  async function loadCredentials(userCode) {
+    return storeFor(userCode).load();
+  }
+
   return {
+    async about() {
+      return {
+        name: packageJson.displayName,
+        packageName: packageJson.name,
+        version: packageJson.version,
+        description: packageJson.description,
+        node: process.versions.node,
+        homebridge: packageJson.engines.homebridge,
+        repository: packageJson.repository.url.replace(/^git\+/, '').replace(/\.git$/, ''),
+        issues: packageJson.bugs.url,
+      };
+    },
+
     async status(payload = {}) {
       const userCode = required(payload.userCode, 'User code');
-      const store = new TuyaSharingCredentialStore(credentialFile(storagePath, userCode));
-      const credentials = await store.load();
+      const credentials = await loadCredentials(userCode);
+      const clientId = payload.clientId || process.env.TUYA_SHARING_CLIENT_ID || DEFAULT_CLIENT_ID;
+      const appSchema = payload.appSchema === 'smartlife' ? 'smartlife' : 'tuyaSmart';
+      const matchesConfiguration = Boolean(credentials
+        && credentials.client_id === clientId
+        && credentials.user_code === userCode
+        && credentials.app_schema === appSchema);
       return credentials ? {
         connected: true,
+        matchesConfiguration,
         username: credentials.username,
         endpoint: credentials.endpoint,
         appSchema: credentials.app_schema,
+        expiresAt: credentials.token_info.t + credentials.token_info.expire_time * 1000,
       } : { connected: false };
     },
 
@@ -42,12 +81,12 @@ function createHandlers(storagePath) {
       const userCode = required(payload.userCode, 'User code');
       const clientId = payload.clientId || process.env.TUYA_SHARING_CLIENT_ID || DEFAULT_CLIENT_ID;
       const qrSchema = payload.qrSchema || process.env.TUYA_SHARING_SCHEMA || DEFAULT_SCHEMA;
-      const login = new TuyaSharingLogin(clientId, payload.endpoint || DEFAULT_LOGIN_ENDPOINT, undefined, qrSchema);
+      const login = new Login(clientId, payload.endpoint || DEFAULT_LOGIN_ENDPOINT, undefined, qrSchema);
       const qr = await login.createQrCode(userCode);
       return {
         state: 'created',
         qrToken: qr.token,
-        qrImage: await QRCode.toDataURL(qr.content, { errorCorrectionLevel: 'M', width: 320 }),
+        qrImage: await renderQr(qr.content),
       };
     },
 
@@ -56,12 +95,89 @@ function createHandlers(storagePath) {
       const clientId = payload.clientId || process.env.TUYA_SHARING_CLIENT_ID || DEFAULT_CLIENT_ID;
       const qrToken = required(payload.qrToken, 'QR token');
       const appSchema = payload.appSchema === 'smartlife' ? 'smartlife' : 'tuyaSmart';
-      const login = new TuyaSharingLogin(clientId, payload.endpoint || DEFAULT_LOGIN_ENDPOINT);
+      const login = new Login(clientId, payload.endpoint || DEFAULT_LOGIN_ENDPOINT);
       const credentials = await login.loginResult(qrToken, userCode, appSchema);
       if (!credentials) return { state: 'pending' };
-      const store = new TuyaSharingCredentialStore(credentialFile(storagePath, userCode));
+      const store = storeFor(userCode);
       await store.save(credentials);
       return { state: 'success', username: credentials.username, endpoint: credentials.endpoint };
+    },
+
+    async overview(payload = {}) {
+      const userCode = required(payload.userCode, 'User code');
+      const clientId = payload.clientId || process.env.TUYA_SHARING_CLIENT_ID || DEFAULT_CLIENT_ID;
+      const appSchema = payload.appSchema === 'smartlife' ? 'smartlife' : 'tuyaSmart';
+      const store = storeFor(userCode);
+      const credentials = await store.load();
+      if (!credentials) {
+        return { connected: false, reason: 'not_authorized', homes: [], devices: [] };
+      }
+      if (credentials.client_id !== clientId
+        || credentials.user_code !== userCode
+        || credentials.app_schema !== appSchema) {
+        return { connected: false, reason: 'configuration_changed', homes: [], devices: [] };
+      }
+
+      const api = new SharingAPI({
+        credentials,
+        onTokenUpdate: async token => {
+          credentials.token_info = token;
+          await store.save(credentials);
+        },
+      });
+      const homeResponse = await api.get('/v1.0/m/life/users/homes');
+      if (!homeResponse.success || !Array.isArray(homeResponse.result)) {
+        throw new RequestError(
+          `Tuya could not load homes (${homeResponse.code || 'unknown'}): ${homeResponse.msg || 'Unknown error'}`,
+          { status: 502 },
+        );
+      }
+
+      const selectedHomes = Array.isArray(payload.homeWhitelist)
+        ? new Set(payload.homeWhitelist.map(String))
+        : null;
+      const homes = [];
+      const devices = [];
+      for (const rawHome of homeResponse.result) {
+        const homeId = String(rawHome.ownerId ?? rawHome.home_id ?? rawHome.id ?? '');
+        if (!homeId) continue;
+        const home = {
+          id: homeId,
+          name: String(rawHome.name ?? homeId),
+          selected: !selectedHomes || selectedHomes.has(homeId),
+          deviceCount: 0,
+          onlineCount: 0,
+        };
+        if (home.selected) {
+          const deviceResponse = await api.get('/v1.0/m/life/ha/home/devices', { homeId });
+          if (deviceResponse.success && Array.isArray(deviceResponse.result)) {
+            for (const rawDevice of deviceResponse.result) {
+              const device = {
+                id: String(rawDevice.id ?? ''),
+                name: String(rawDevice.name ?? rawDevice.id ?? 'Unnamed device'),
+                category: String(rawDevice.category ?? 'unknown'),
+                productName: String(rawDevice.product_name ?? rawDevice.productName ?? ''),
+                online: rawDevice.online !== false,
+                subDevice: rawDevice.sub === true,
+                homeId,
+              };
+              devices.push(device);
+              home.deviceCount += 1;
+              if (device.online) home.onlineCount += 1;
+            }
+          }
+        }
+        homes.push(home);
+      }
+
+      return {
+        connected: true,
+        username: credentials.username,
+        appSchema: credentials.app_schema,
+        endpoint: credentials.endpoint,
+        homes,
+        devices,
+      };
     },
   };
 }
@@ -70,9 +186,11 @@ class TuyaAccountUiServer extends HomebridgePluginUiServer {
   constructor() {
     super();
     const handlers = createHandlers(this.homebridgeStoragePath);
+    this.onRequest('/about', handlers.about);
     this.onRequest('/sharing/status', handlers.status);
     this.onRequest('/sharing/qr/start', handlers.start);
     this.onRequest('/sharing/qr/poll', handlers.poll);
+    this.onRequest('/sharing/overview', handlers.overview);
     this.ready();
   }
 }

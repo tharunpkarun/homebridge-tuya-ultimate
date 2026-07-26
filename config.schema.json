@@ -21,7 +21,7 @@
                     "projectType": {
                         "title": "Project Type (Development Method)",
                         "type": "string",
-                        "default": "2",
+                        "default": "3",
                         "oneOf": [
                             {
                                 "title": "Custom",

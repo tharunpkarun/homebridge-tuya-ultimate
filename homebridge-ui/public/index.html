@@ -1,120 +1,958 @@
 <style>
-  #accountLogin { max-width: 680px; }
-  #qrImage { width: 260px; height: 260px; padding: 10px; background: white; border-radius: 8px; }
+  .tuya-shell {
+    --tuya-canvas: #f4f6fb;
+    --tuya-surface: #ffffff;
+    --tuya-surface-soft: #f8f9fc;
+    --tuya-border: #dce2eb;
+    --tuya-text: #172033;
+    --tuya-muted: #667085;
+    --tuya-primary: #6941c6;
+    --tuya-primary-hover: #53389e;
+    --tuya-primary-soft: #f0eaff;
+    --tuya-accent: #f05a28;
+    --tuya-accent-soft: #fff0e8;
+    --tuya-success: #067647;
+    --tuya-success-soft: #dcfae6;
+    --tuya-warning: #b54708;
+    --tuya-warning-soft: #fef0c7;
+    --tuya-danger: #b42318;
+    --tuya-danger-soft: #fee4e2;
+    --tuya-shadow: 0 8px 24px rgba(16, 24, 40, .08);
+    color: var(--tuya-text);
+    background: var(--tuya-canvas);
+    border-radius: 14px;
+    overflow: hidden;
+    font-size: 14px;
+  }
+
+  .tuya-shell[data-theme="dark"] {
+    --tuya-canvas: #0f141f;
+    --tuya-surface: #192230;
+    --tuya-surface-soft: #202b3a;
+    --tuya-border: #334155;
+    --tuya-text: #f4f7fb;
+    --tuya-muted: #a8b3c5;
+    --tuya-primary: #b692f6;
+    --tuya-primary-hover: #cdb7ff;
+    --tuya-primary-soft: #342854;
+    --tuya-accent: #ff9c72;
+    --tuya-accent-soft: #4a2b22;
+    --tuya-success: #6ce9a6;
+    --tuya-success-soft: #173f31;
+    --tuya-warning: #fec84b;
+    --tuya-warning-soft: #4a3513;
+    --tuya-danger: #fda29b;
+    --tuya-danger-soft: #4b2527;
+    --tuya-shadow: 0 10px 30px rgba(0, 0, 0, .28);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .tuya-shell[data-theme="auto"] {
+      --tuya-canvas: #0f141f;
+      --tuya-surface: #192230;
+      --tuya-surface-soft: #202b3a;
+      --tuya-border: #334155;
+      --tuya-text: #f4f7fb;
+      --tuya-muted: #a8b3c5;
+      --tuya-primary: #b692f6;
+      --tuya-primary-hover: #cdb7ff;
+      --tuya-primary-soft: #342854;
+      --tuya-accent: #ff9c72;
+      --tuya-accent-soft: #4a2b22;
+      --tuya-success: #6ce9a6;
+      --tuya-success-soft: #173f31;
+      --tuya-warning: #fec84b;
+      --tuya-warning-soft: #4a3513;
+      --tuya-danger: #fda29b;
+      --tuya-danger-soft: #4b2527;
+      --tuya-shadow: 0 10px 30px rgba(0, 0, 0, .28);
+    }
+  }
+
+  .tuya-shell *, .tuya-shell *::before, .tuya-shell *::after { box-sizing: border-box; }
+  .tuya-shell [hidden] { display: none !important; }
+  .tuya-shell button, .tuya-shell input, .tuya-shell select, .tuya-shell textarea { font: inherit; }
+  .tuya-shell a { color: var(--tuya-primary); }
+  .tuya-hero { padding: 20px; color: #fff; background: linear-gradient(135deg, #ef5b2a 0%, #d9466b 42%, #6941c6 100%); }
+  .tuya-hero-row { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+  .tuya-brand { display: flex; gap: 12px; align-items: center; }
+  .tuya-logo { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 14px; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.3); }
+  .tuya-logo svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+  .tuya-hero h2 { margin: 0; color: #fff; font-size: 1.25rem; }
+  .tuya-hero p { margin: 4px 0 0; color: rgba(255,255,255,.84); font-size: .82rem; }
+  .tuya-hero-actions { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
+  .tuya-hero-button, .tuya-theme-select { border: 1px solid rgba(255,255,255,.34); background: rgba(255,255,255,.14); color: #fff; border-radius: 8px; padding: 7px 10px; font-size: .76rem; font-weight: 700; }
+  .tuya-hero-button { cursor: pointer; text-decoration: none; }
+  .tuya-hero-button:hover { color: #fff; background: rgba(255,255,255,.23); text-decoration: none; }
+  .tuya-theme-select { background: #773ea1; }
+
+  .tuya-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; padding: 14px 16px 0; }
+  .tuya-stat { min-width: 0; padding: 11px 12px; background: var(--tuya-surface); border: 1px solid var(--tuya-border); border-radius: 11px; box-shadow: var(--tuya-shadow); }
+  .tuya-stat strong { display: block; color: var(--tuya-text); font-size: 1.05rem; line-height: 1.2; overflow-wrap: anywhere; }
+  .tuya-stat span { display: block; color: var(--tuya-muted); font-size: .7rem; margin-top: 2px; }
+  .tuya-stat .tuya-stat-good { color: var(--tuya-success); }
+
+  .tuya-tabs { display: flex; gap: 5px; padding: 14px 16px 0; overflow-x: auto; }
+  .tuya-tab { flex: 1 0 auto; padding: 9px 12px; cursor: pointer; color: var(--tuya-muted); background: var(--tuya-surface); border: 1px solid var(--tuya-border); border-radius: 9px 9px 0 0; font-weight: 750; }
+  .tuya-tab[aria-selected="true"] { color: var(--tuya-primary); background: var(--tuya-primary-soft); border-color: var(--tuya-primary); }
+  .tuya-panel { padding: 14px 16px 18px; }
+  .tuya-section { padding: 15px; margin-bottom: 12px; color: var(--tuya-text); background: var(--tuya-surface); border: 1px solid var(--tuya-border); border-radius: 12px; box-shadow: var(--tuya-shadow); }
+  .tuya-section:last-child { margin-bottom: 0; }
+  .tuya-section-header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+  .tuya-section h3, .tuya-section h4 { margin: 0; color: var(--tuya-text); }
+  .tuya-section h3 { font-size: 1rem; }
+  .tuya-section h4 { font-size: .9rem; }
+  .tuya-subtitle { color: var(--tuya-muted); font-size: .77rem; margin-top: 3px; }
+  .tuya-eyebrow { display: block; margin-bottom: 2px; color: var(--tuya-muted); text-transform: uppercase; letter-spacing: .08em; font-size: .63rem; font-weight: 850; }
+  .tuya-toolbar { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+  .tuya-device-search { width: 170px; }
+  .tuya-auto-width { width: auto; }
+  .tuya-mt-10 { margin-top: 10px; }
+  .tuya-mt-11 { margin-top: 11px; }
+  .tuya-mt-12 { margin-top: 12px; }
+  .tuya-mt-13 { margin-top: 13px; }
+  .tuya-mb-12 { margin-bottom: 12px; }
+  .tuya-grid-wide { grid-column: 1 / -1; }
+
+  .tuya-button { padding: 7px 10px; cursor: pointer; color: var(--tuya-text); background: var(--tuya-surface-soft); border: 1px solid var(--tuya-border); border-radius: 8px; font-size: .76rem; font-weight: 750; text-decoration: none; }
+  .tuya-button:hover:not(:disabled) { color: var(--tuya-primary); border-color: var(--tuya-primary); text-decoration: none; }
+  .tuya-button:disabled { opacity: .5; cursor: not-allowed; }
+  .tuya-button-primary { color: #fff; background: var(--tuya-primary); border-color: var(--tuya-primary); }
+  .tuya-button-primary:hover:not(:disabled) { color: #fff; background: var(--tuya-primary-hover); border-color: var(--tuya-primary-hover); }
+  .tuya-button-accent { color: #fff; background: var(--tuya-accent); border-color: var(--tuya-accent); }
+  .tuya-button-accent:hover:not(:disabled) { color: #fff; filter: brightness(.93); }
+  .tuya-button-large { padding: 9px 14px; font-size: .82rem; }
+
+  .tuya-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); gap: 10px; }
+  .tuya-progress { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .tuya-step { padding: 10px; background: var(--tuya-surface-soft); border: 1px solid var(--tuya-border); border-radius: 10px; }
+  .tuya-step-number { width: 23px; height: 23px; display: grid; place-items: center; margin-bottom: 6px; color: var(--tuya-primary); background: var(--tuya-primary-soft); border-radius: 50%; font-size: .7rem; font-weight: 850; }
+  .tuya-step-done .tuya-step-number { color: var(--tuya-success); background: var(--tuya-success-soft); }
+  .tuya-step strong { display: block; color: var(--tuya-text); font-size: .75rem; }
+  .tuya-step span { display: block; margin-top: 2px; color: var(--tuya-muted); font-size: .66rem; }
+
+  .tuya-callout { padding: 10px 12px; color: var(--tuya-text); background: var(--tuya-primary-soft); border-left: 4px solid var(--tuya-primary); border-radius: 8px; font-size: .75rem; }
+  .tuya-callout-success { background: var(--tuya-success-soft); border-left-color: var(--tuya-success); }
+  .tuya-callout-warning { background: var(--tuya-warning-soft); border-left-color: var(--tuya-warning); }
+  .tuya-callout-danger { background: var(--tuya-danger-soft); border-left-color: var(--tuya-danger); }
+  .tuya-callout strong { color: inherit; }
+
+  .tuya-method-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+  .tuya-method { position: relative; min-width: 0; padding: 13px; cursor: pointer; text-align: left; color: var(--tuya-text); background: var(--tuya-surface-soft); border: 1px solid var(--tuya-border); border-radius: 11px; }
+  .tuya-method:hover { border-color: var(--tuya-primary); }
+  .tuya-method[aria-pressed="true"] { background: var(--tuya-primary-soft); border: 2px solid var(--tuya-primary); padding: 12px; }
+  .tuya-method-icon { width: 34px; height: 34px; display: grid; place-items: center; margin-bottom: 9px; color: var(--tuya-primary); background: var(--tuya-primary-soft); border-radius: 9px; }
+  .tuya-method-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+  .tuya-method strong { display: block; font-size: .79rem; }
+  .tuya-method span { display: block; margin-top: 3px; color: var(--tuya-muted); font-size: .67rem; line-height: 1.35; }
+  .tuya-recommended { position: absolute; top: 8px; right: 8px; color: var(--tuya-success); font-size: .58rem; font-weight: 850; text-transform: uppercase; letter-spacing: .05em; }
+
+  .tuya-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+  .tuya-field { min-width: 0; }
+  .tuya-field-wide { grid-column: 1 / -1; }
+  .tuya-field label { display: block; margin-bottom: 4px; color: var(--tuya-text); font-size: .72rem; font-weight: 780; }
+  .tuya-help { display: block; margin-top: 4px; color: var(--tuya-muted); font-size: .65rem; line-height: 1.4; }
+  .tuya-input { width: 100%; padding: 8px 9px; color: var(--tuya-text); background: var(--tuya-surface-soft); border: 1px solid var(--tuya-border); border-radius: 8px; outline: none; }
+  .tuya-input:focus { border-color: var(--tuya-primary); box-shadow: 0 0 0 3px var(--tuya-primary-soft); }
+  .tuya-input::placeholder { color: var(--tuya-muted); opacity: .75; }
+  .tuya-check { display: flex; gap: 8px; align-items: flex-start; color: var(--tuya-text); font-size: .75rem; }
+  .tuya-check input { margin-top: 3px; accent-color: var(--tuya-primary); }
+  .tuya-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .71rem !important; }
+  .tuya-divider { margin: 14px 0; border: 0; border-top: 1px solid var(--tuya-border); }
+
+  .tuya-qr-layout { display: grid; grid-template-columns: minmax(220px, 310px) 1fr; gap: 18px; align-items: center; }
+  .tuya-qr-wrap { position: relative; width: min(100%, 310px); padding: 12px; background: #fff; border: 1px solid var(--tuya-border); border-radius: 14px; box-shadow: var(--tuya-shadow); }
+  .tuya-qr-wrap img { display: block; width: 100%; height: auto; }
+  .tuya-qr-live { position: absolute; top: 9px; right: 9px; padding: 3px 7px; color: #fff; background: #067647; border-radius: 999px; font-size: .58rem; font-weight: 850; letter-spacing: .04em; text-transform: uppercase; }
+  .tuya-scan-steps { display: grid; gap: 9px; }
+  .tuya-scan-step { display: flex; gap: 9px; align-items: flex-start; }
+  .tuya-scan-step b { width: 23px; height: 23px; flex: 0 0 23px; display: grid; place-items: center; color: var(--tuya-primary); background: var(--tuya-primary-soft); border-radius: 50%; font-size: .68rem; }
+  .tuya-scan-step strong { display: block; color: var(--tuya-text); font-size: .74rem; }
+  .tuya-scan-step span { display: block; margin-top: 2px; color: var(--tuya-muted); font-size: .66rem; }
+
+  .tuya-home-card, .tuya-device-card { min-width: 0; padding: 12px; color: var(--tuya-text); background: var(--tuya-surface-soft); border: 1px solid var(--tuya-border); border-radius: 11px; }
+  .tuya-card-head { display: flex; gap: 9px; align-items: flex-start; }
+  .tuya-card-icon { width: 36px; height: 36px; flex: 0 0 36px; display: grid; place-items: center; color: var(--tuya-primary); background: var(--tuya-primary-soft); border-radius: 9px; }
+  .tuya-card-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+  .tuya-card-title { min-width: 0; flex: 1; }
+  .tuya-card-title h4 { margin: 0; overflow-wrap: anywhere; font-size: .86rem; }
+  .tuya-card-title p { margin: 2px 0 0; overflow-wrap: anywhere; color: var(--tuya-muted); font-size: .66rem; }
+  .tuya-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+  .tuya-badge { padding: 3px 7px; color: var(--tuya-muted); background: var(--tuya-surface); border: 1px solid var(--tuya-border); border-radius: 999px; font-size: .62rem; font-weight: 800; }
+  .tuya-badge-success { color: var(--tuya-success); background: var(--tuya-success-soft); border-color: transparent; }
+  .tuya-badge-warning { color: var(--tuya-warning); background: var(--tuya-warning-soft); border-color: transparent; }
+  .tuya-badge-primary { color: var(--tuya-primary); background: var(--tuya-primary-soft); border-color: transparent; }
+  .tuya-home-picker { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+  .tuya-home-option { display: flex; gap: 9px; align-items: flex-start; padding: 10px; cursor: pointer; color: var(--tuya-text); background: var(--tuya-surface-soft); border: 1px solid var(--tuya-border); border-radius: 9px; }
+  .tuya-home-option input { margin-top: 3px; accent-color: var(--tuya-primary); }
+  .tuya-home-option strong { display: block; font-size: .74rem; }
+  .tuya-home-option span { display: block; margin-top: 2px; color: var(--tuya-muted); font-size: .64rem; }
+  .tuya-empty { padding: 21px 12px; color: var(--tuya-muted); text-align: center; background: var(--tuya-surface-soft); border: 1px dashed var(--tuya-border); border-radius: 10px; }
+  .tuya-kv { display: grid; grid-template-columns: minmax(110px, .75fr) 1.5fr; gap: 7px 12px; }
+  .tuya-kv dt { color: var(--tuya-muted); font-size: .69rem; }
+  .tuya-kv dd { margin: 0; overflow-wrap: anywhere; color: var(--tuya-text); font-size: .73rem; }
+  .tuya-footer { padding: 0 16px 16px; color: var(--tuya-muted); text-align: center; font-size: .67rem; }
+
+  @media (max-width: 700px) {
+    .tuya-method-grid { grid-template-columns: 1fr; }
+    .tuya-qr-layout { grid-template-columns: 1fr; }
+    .tuya-qr-wrap { margin: 0 auto; }
+  }
+
+  @media (max-width: 620px) {
+    .tuya-hero-row, .tuya-section-header { flex-direction: column; }
+    .tuya-hero-actions { justify-content: flex-start; }
+    .tuya-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tuya-progress { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tuya-form-grid { grid-template-columns: 1fr; }
+    .tuya-field-wide { grid-column: auto; }
+  }
 </style>
 
-<div id="accountLogin" class="card card-body mb-3 d-none">
-  <h5>Smart Life / Tuya Smart QR login</h5>
-  <p class="text-muted">No personal IoT Developer Platform project, Access ID, or Access Secret is required.</p>
-  <div class="alert alert-warning">
-    <strong>Home Assistant compatibility mode:</strong>
-    This plugin uses Home Assistant's public Tuya authorization identity by default. Authorizing the same Tuya account may
-    disconnect or replace Home Assistant's existing Tuya session. For reliable coexistence, add a second Tuya Smart or
-    Smart Life account as a member of the same Tuya Home and authorize that account here. A separate integration identity
-    cannot be invented locally; its client ID and QR schema must be issued and enabled by Tuya.
+<div id="tuyaApp" class="tuya-shell" data-theme="auto">
+  <header class="tuya-hero">
+    <div class="tuya-hero-row">
+      <div class="tuya-brand">
+        <div class="tuya-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 1 3.2 6.4"></path><path d="M4 16v-4h4"></path><path d="M9 12.5 11.2 15 16 9.5"></path></svg>
+        </div>
+        <div>
+          <h2>Homebridge Tuya Ultimate</h2>
+          <p>Connect, authorize, inspect, and configure Smart Life and Tuya Smart.</p>
+        </div>
+      </div>
+      <div class="tuya-hero-actions">
+        <a class="tuya-hero-button" href="https://github.com/tharunpkarun/homebridge-tuya-ultimate#readme" target="_blank" rel="noopener noreferrer">Documentation</a>
+        <a class="tuya-hero-button" href="https://github.com/tharunpkarun/homebridge-tuya-ultimate/issues/new/choose" target="_blank" rel="noopener noreferrer">Report a bug</a>
+        <select id="tuyaTheme" class="tuya-theme-select" aria-label="Color theme">
+          <option value="auto">Auto theme</option>
+          <option value="light">Light theme</option>
+          <option value="dark">Dark theme</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <div class="tuya-stats" role="group" aria-label="Plugin summary">
+    <div class="tuya-stat"><strong id="tuyaAuthorizationStat">Checking…</strong><span>Authorization</span></div>
+    <div class="tuya-stat"><strong id="tuyaAppStat">—</strong><span>Connection</span></div>
+    <div class="tuya-stat"><strong id="tuyaHomesStat">—</strong><span>Selected homes</span></div>
+    <div class="tuya-stat"><strong id="tuyaDevicesStat">—</strong><span>Visible devices</span></div>
   </div>
-  <button id="startQr" type="button" class="btn btn-primary">Start QR login</button>
-  <div id="qrPanel" class="mt-3 d-none">
-    <img id="qrImage" alt="Tuya account login QR code">
-    <p class="mt-2">Scan with the selected <strong id="appName"></strong> app.</p>
-  </div>
-  <div id="loginStatus" class="mt-2 text-muted" role="status"></div>
+
+  <nav class="tuya-tabs" role="tablist" aria-label="Plugin settings">
+    <button class="tuya-tab" type="button" role="tab" aria-selected="true" data-tuya-tab="dashboard">Dashboard</button>
+    <button class="tuya-tab" type="button" role="tab" aria-selected="false" data-tuya-tab="account">Account</button>
+    <button class="tuya-tab" type="button" role="tab" aria-selected="false" data-tuya-tab="settings">Settings</button>
+    <button class="tuya-tab" type="button" role="tab" aria-selected="false" data-tuya-tab="advanced">Advanced &amp; Help</button>
+  </nav>
+
+  <main>
+    <section id="tuyaPanelDashboard" class="tuya-panel" role="tabpanel" data-tuya-panel="dashboard">
+      <div class="tuya-section">
+        <div class="tuya-section-header">
+          <div><h3>Setup journey</h3><div class="tuya-subtitle">A clear path from a Tuya app account to live HomeKit accessories.</div></div>
+          <button id="tuyaDashboardAction" class="tuya-button tuya-button-primary" type="button">Set up account</button>
+        </div>
+        <div id="tuyaProgress" class="tuya-progress"></div>
+      </div>
+
+      <div class="tuya-section">
+        <div class="tuya-section-header">
+          <div><h3>Account health</h3><div id="tuyaLastUpdated" class="tuya-subtitle">Loading authorization state…</div></div>
+          <button id="tuyaRefresh" class="tuya-button" type="button">Refresh from Tuya</button>
+        </div>
+        <div id="tuyaDashboardMessage" class="tuya-callout"></div>
+      </div>
+
+      <div class="tuya-section">
+        <div class="tuya-section-header">
+          <div><h3>Tuya homes</h3><div class="tuya-subtitle">Homes and counts returned by the account-sharing API.</div></div>
+        </div>
+        <div id="tuyaDashboardHomes" class="tuya-grid"><div class="tuya-empty">Authorize an account to load its homes.</div></div>
+      </div>
+
+      <div class="tuya-section">
+        <div class="tuya-section-header">
+          <div><h3>Device snapshot</h3><div class="tuya-subtitle">A read-only view of devices currently visible to this account.</div></div>
+          <div class="tuya-toolbar">
+            <input id="tuyaDeviceSearch" class="tuya-input tuya-device-search" type="search" placeholder="Search devices" aria-label="Search devices">
+            <select id="tuyaDeviceFilter" class="tuya-input tuya-auto-width" aria-label="Filter devices">
+              <option value="all">All devices</option>
+              <option value="online">Online</option>
+              <option value="offline">Offline</option>
+              <option value="sub">Zigbee / sub-devices</option>
+            </select>
+          </div>
+        </div>
+        <div id="tuyaDashboardDevices" class="tuya-grid"><div class="tuya-empty">No device data loaded yet.</div></div>
+      </div>
+    </section>
+
+    <section id="tuyaPanelAccount" class="tuya-panel" role="tabpanel" data-tuya-panel="account" hidden>
+      <div class="tuya-section">
+        <div class="tuya-section-header">
+          <div><h3>Choose how Homebridge connects</h3><div class="tuya-subtitle">QR authorization is the simplest option; existing Tuya developer projects remain supported.</div></div>
+        </div>
+        <div class="tuya-method-grid">
+          <button class="tuya-method" type="button" data-project-type="3" aria-pressed="false">
+            <span class="tuya-recommended">Recommended</span>
+            <span class="tuya-method-icon"><svg viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v6h-6v-2M14 18h2"></path></svg></span>
+            <strong>App QR authorization</strong>
+            <span>No developer project, access key, password, or subscription renewal.</span>
+          </button>
+          <button class="tuya-method" type="button" data-project-type="2" aria-pressed="false">
+            <span class="tuya-method-icon"><svg viewBox="0 0 24 24"><path d="M12 3a5 5 0 0 0-5 5v3l-2 3v1h14v-1l-2-3V8a5 5 0 0 0-5-5zM9 19h6"></path></svg></span>
+            <strong>Smart Home project</strong>
+            <span>For an existing Tuya Cloud project linked to a Smart Life or Tuya Smart account.</span>
+          </button>
+          <button class="tuya-method" type="button" data-project-type="1" aria-pressed="false">
+            <span class="tuya-method-icon"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4zM8 10l-2 2 2 2M11 15h5"></path></svg></span>
+            <strong>Custom project</strong>
+            <span>For industry projects and custom Tuya Cloud endpoints.</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="tuyaQrAccount" class="tuya-section">
+        <div class="tuya-section-header">
+          <div><span class="tuya-eyebrow">Recommended connection</span><h3>Smart Life / Tuya Smart QR login</h3><div class="tuya-subtitle">The authorization token is stored outside config.json with owner-only filesystem permissions.</div></div>
+          <span id="tuyaAccountBadge" class="tuya-badge tuya-badge-warning">Not connected</span>
+        </div>
+        <div class="tuya-callout tuya-callout-warning tuya-mb-12">
+          <strong>Home Assistant compatibility identity:</strong> this plugin uses Home Assistant's public Tuya identity. Authorizing the same Tuya account can replace Home Assistant's session. The reliable coexistence setup is a second app account shared into the same Tuya Home.
+        </div>
+        <div class="tuya-form-grid">
+          <div class="tuya-field">
+            <label for="tuyaAppSchema">Tuya app</label>
+            <select id="tuyaAppSchema" class="tuya-input">
+              <option value="tuyaSmart">Tuya Smart</option>
+              <option value="smartlife">Smart Life</option>
+            </select>
+            <span class="tuya-help">Select the exact app where this account and its devices appear.</span>
+          </div>
+          <div class="tuya-field">
+            <label for="tuyaUserCode">App User Code</label>
+            <input id="tuyaUserCode" class="tuya-input tuya-mono" type="text" autocomplete="off" placeholder="Enter the User Code">
+            <span class="tuya-help">App → Me → Settings → Account and Security → User Code.</span>
+          </div>
+        </div>
+        <div class="tuya-toolbar tuya-mt-12">
+          <button id="tuyaStartQr" class="tuya-button tuya-button-accent tuya-button-large" type="button">Generate login QR code</button>
+          <button id="tuyaCheckAccount" class="tuya-button" type="button">Check authorization</button>
+        </div>
+        <div id="tuyaAuthStatus" class="tuya-callout tuya-mt-12">Enter the User Code, then generate a QR code.</div>
+      </div>
+
+      <div id="tuyaQrPanel" class="tuya-section" hidden>
+        <div class="tuya-section-header">
+          <div><span class="tuya-eyebrow">Secure authorization</span><h3>Scan this fresh QR code</h3><div class="tuya-subtitle">Keep this page open while approving access in the selected app.</div></div>
+          <button id="tuyaCancelQr" class="tuya-button" type="button">Cancel</button>
+        </div>
+        <div class="tuya-qr-layout">
+          <div class="tuya-qr-wrap"><img id="tuyaQrImage" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Tuya account authorization QR code"><span class="tuya-qr-live">Live code</span></div>
+          <div>
+            <div class="tuya-scan-steps">
+              <div class="tuya-scan-step"><b>1</b><div><strong>Open <span id="tuyaQrAppName">the selected app</span></strong><span>Stay signed in to the account matching the User Code.</span></div></div>
+              <div class="tuya-scan-step"><b>2</b><div><strong>Use the app's scanner</strong><span>Scan the code shown on this screen.</span></div></div>
+              <div class="tuya-scan-step"><b>3</b><div><strong>Approve the request</strong><span>This page detects approval automatically.</span></div></div>
+            </div>
+            <div id="tuyaQrStatus" class="tuya-callout tuya-mt-13" role="status" aria-live="polite">Waiting for scan and confirmation…</div>
+            <button id="tuyaRegenerateQr" class="tuya-button tuya-mt-10" type="button">Generate a fresh code</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="tuyaDeveloperAccount" class="tuya-section" hidden>
+        <div class="tuya-section-header">
+          <div><span class="tuya-eyebrow">Developer project</span><h3 id="tuyaDeveloperTitle">Cloud project credentials</h3><div class="tuya-subtitle">These fields are retained for existing Tuya developer-project installations.</div></div>
+          <button id="tuyaSaveAccount" class="tuya-button tuya-button-primary" type="button">Save account settings</button>
+        </div>
+        <div class="tuya-form-grid">
+          <div class="tuya-field tuya-field-wide"><label for="tuyaEndpoint">Cloud endpoint</label><input id="tuyaEndpoint" class="tuya-input tuya-mono" type="url" placeholder="https://openapi.tuyaus.com"><span class="tuya-help">Required for Custom projects; optional override for Smart Home projects.</span></div>
+          <div class="tuya-field"><label for="tuyaAccessId">Access ID</label><input id="tuyaAccessId" class="tuya-input tuya-mono" type="text" autocomplete="off"></div>
+          <div class="tuya-field"><label for="tuyaAccessKey">Access Secret</label><input id="tuyaAccessKey" class="tuya-input tuya-mono" type="password" autocomplete="new-password"></div>
+          <div class="tuya-field" data-smart-home-only><label for="tuyaCountryCode">Country code</label><input id="tuyaCountryCode" class="tuya-input" type="number" min="1" placeholder="91"></div>
+          <div class="tuya-field" data-smart-home-only><label for="tuyaDeveloperApp">Linked app</label><select id="tuyaDeveloperApp" class="tuya-input"><option value="tuyaSmart">Tuya Smart</option><option value="smartlife">Smart Life</option></select></div>
+          <div class="tuya-field" data-smart-home-only><label for="tuyaUsername">App username</label><input id="tuyaUsername" class="tuya-input" type="text" autocomplete="username"></div>
+          <div class="tuya-field" data-smart-home-only><label for="tuyaPassword">App password</label><input id="tuyaPassword" class="tuya-input" type="password" autocomplete="current-password"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tuyaPanelSettings" class="tuya-panel" role="tabpanel" data-tuya-panel="settings" hidden>
+      <div class="tuya-section">
+        <div class="tuya-section-header">
+          <div><h3>Home selection</h3><div class="tuya-subtitle">Choose which Tuya Homes Homebridge should expose. Leave every home selected to include all visible homes.</div></div>
+          <button id="tuyaSaveHomes" class="tuya-button tuya-button-primary" type="button">Save home selection</button>
+        </div>
+        <div id="tuyaHomePicker" class="tuya-home-picker"><div class="tuya-empty tuya-grid-wide">Connect and refresh the account to choose homes visually.</div></div>
+        <div class="tuya-field tuya-mt-11">
+          <label for="tuyaManualHomes">Home IDs</label>
+          <textarea id="tuyaManualHomes" class="tuya-input tuya-mono" rows="2" placeholder="One ID per line, or leave blank for every home"></textarea>
+          <span class="tuya-help">The visual selection above updates this list. Manual IDs also support developer-project modes.</span>
+        </div>
+      </div>
+
+      <div class="tuya-section">
+        <div class="tuya-section-header">
+          <div><h3>Platform behavior</h3><div class="tuya-subtitle">Common settings shared by every Tuya accessory.</div></div>
+          <button id="tuyaSaveSettings" class="tuya-button tuya-button-primary" type="button">Save settings</button>
+        </div>
+        <div class="tuya-form-grid">
+          <div class="tuya-field tuya-field-wide"><label for="tuyaPlatformName">Platform name</label><input id="tuyaPlatformName" class="tuya-input" type="text"><span class="tuya-help">Shown in Homebridge logs and configuration.</span></div>
+          <label class="tuya-check"><input id="tuyaWeather" type="checkbox"><span><strong>Generate a weather accessory</strong><br><span class="tuya-help">Uses a device location to expose local weather in HomeKit.</span></span></label>
+          <div class="tuya-field"><label for="tuyaWeatherApi">Weather provider</label><select id="tuyaWeatherApi" class="tuya-input"><option value="open-meteo">Open-Meteo</option><option value="tuya">Tuya weather API</option></select></div>
+          <label class="tuya-check"><input id="tuyaForceIpv4" type="checkbox"><span><strong>Force IPv4</strong><br><span class="tuya-help">Useful only when IPv6 routing causes cloud connectivity problems.</span></span></label>
+          <label class="tuya-check"><input id="tuyaDebug" type="checkbox"><span><strong>Debug logging</strong><br><span class="tuya-help">Enable temporarily while diagnosing a problem.</span></span></label>
+          <div class="tuya-field tuya-field-wide"><label for="tuyaDebugLevel">Debug scopes</label><input id="tuyaDebugLevel" class="tuya-input tuya-mono" type="text" placeholder="api or a comma-separated list of device IDs"><span class="tuya-help">Leave blank to use the plugin's default debug output.</span></div>
+        </div>
+        <div class="tuya-callout tuya-mt-12">Configuration changes take effect after Homebridge restarts. Saving here preserves device overrides, cameras, and every advanced option already configured.</div>
+      </div>
+    </section>
+
+    <section id="tuyaPanelAdvanced" class="tuya-panel" role="tabpanel" data-tuya-panel="advanced" hidden>
+      <div class="tuya-section">
+        <div class="tuya-section-header">
+          <div><h3>Advanced configuration</h3><div class="tuya-subtitle">Device datapoint overrides, service information, RTSP cameras, raw endpoints, and integration identity overrides.</div></div>
+          <button id="tuyaToggleSchema" class="tuya-button tuya-button-primary" type="button">Open full schema editor</button>
+        </div>
+        <div class="tuya-callout tuya-callout-warning"><strong>Use overrides deliberately.</strong> The guided settings cover normal installations. The full schema editor is intended for unusual products and troubleshooting, and appears below this dashboard when opened.</div>
+      </div>
+
+      <div class="tuya-section">
+        <div class="tuya-section-header"><div><h3>Package details</h3><div class="tuya-subtitle">Installed build, compatibility, runtime, and project links.</div></div><span id="tuyaVersionBadge" class="tuya-badge tuya-badge-primary">Loading…</span></div>
+        <dl id="tuyaPackageDetails" class="tuya-kv"></dl>
+        <div class="tuya-toolbar tuya-mt-12">
+          <a class="tuya-button" href="https://github.com/tharunpkarun/homebridge-tuya-ultimate" target="_blank" rel="noopener noreferrer">GitHub repository</a>
+          <a class="tuya-button" href="https://github.com/tharunpkarun/homebridge-tuya-ultimate/blob/main/ADVANCED_OPTIONS.md" target="_blank" rel="noopener noreferrer">Advanced options</a>
+          <a class="tuya-button" href="https://github.com/tharunpkarun/homebridge-tuya-ultimate/blob/main/SUPPORTED_DEVICES.md" target="_blank" rel="noopener noreferrer">Supported devices</a>
+          <a class="tuya-button" href="https://github.com/tharunpkarun/homebridge-tuya-ultimate/issues/new/choose" target="_blank" rel="noopener noreferrer">Open an issue</a>
+        </div>
+      </div>
+
+      <div class="tuya-section">
+        <div class="tuya-section-header"><div><h3>Before reporting a problem</h3><div class="tuya-subtitle">A focused report is easier to diagnose and safer to share.</div></div></div>
+        <div class="tuya-grid">
+          <div class="tuya-callout"><strong>1. Refresh here</strong><br>Confirm whether homes and devices can still be read from Tuya.</div>
+          <div class="tuya-callout"><strong>2. Enable debug briefly</strong><br>Reproduce the issue once, then turn debug logging off.</div>
+          <div class="tuya-callout"><strong>3. Redact secrets</strong><br>Never share access secrets, tokens, passwords, QR codes, or complete User Codes.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="tuya-footer">Smart Life &amp; Tuya Smart · Cloud push updates · Account tokens stay in Homebridge storage</div>
 </div>
 
 <script>
-(() => {
-  let config = {};
-  let qrToken;
-  let pollTimer;
-  const panel = document.getElementById('accountLogin');
-  const status = document.getElementById('loginStatus');
-  const qrPanel = document.getElementById('qrPanel');
-  const qrImage = document.getElementById('qrImage');
-  const startButton = document.getElementById('startQr');
+  (() => {
+    const homebridge = window.homebridge
+    const byId = id => document.getElementById(id)
+    const errorMessage = error => error?.error?.message || error?.message || String(error)
+    const projectLabels = { '1': 'Custom project', '2': 'Smart Home', '3': 'QR login' }
+    let platform = { platform: 'TuyaPlatform', name: 'Tuya', options: {} }
+    let overview = { connected: false, homes: [], devices: [] }
+    let accountStatus = { connected: false }
+    let about = {}
+    let qrToken
+    let pollTimer
+    let schemaVisible = false
+    let lastUpdatedAt
 
-  window.homebridge.addEventListener('ready', async () => {
-    window.homebridge.showSchemaForm();
-    const blocks = await window.homebridge.getPluginConfig();
-    config = blocks[0] || {};
-    render();
-    window.homebridge.addEventListener('configChanged', event => {
-      config = event.data || config;
-      render();
-    });
-    startButton.addEventListener('click', startLogin);
-  });
-
-  function options() { return config.options || {}; }
-
-  function render() {
-    const active = options().projectType === '3';
-    panel.classList.toggle('d-none', !active);
-    if (active && options().userCode) checkStatus();
-  }
-
-  async function checkStatus() {
-    try {
-      const result = await window.homebridge.request('/sharing/status', { userCode: options().userCode });
-      if (result.connected) setStatus(`Connected${result.username ? ` as ${result.username}` : ''}.`, 'success');
-    } catch (_) { /* Not authorized yet. */ }
-  }
-
-  async function startLogin() {
-    stopPolling();
-    try {
-      const value = options();
-      if (!value.userCode) throw new Error('Enter the app User Code in the form below first.');
-      startButton.disabled = true;
-      setStatus('Creating QR code...', 'muted');
-      const result = await window.homebridge.request('/sharing/qr/start', {
-        userCode: value.userCode,
-        clientId: value.clientId,
-        appSchema: value.appSchema,
-        endpoint: value.endpoint,
-        qrSchema: value.qrSchema,
-      });
-      qrToken = result.qrToken;
-      qrImage.src = result.qrImage;
-      document.getElementById('appName').textContent = value.appSchema === 'smartlife' ? 'Smart Life' : 'Tuya Smart';
-      qrPanel.classList.remove('d-none');
-      setStatus('Waiting for scan and confirmation...', 'info');
-      pollTimer = window.setInterval(pollLogin, 2500);
-    } catch (error) {
-      setStatus(error.message || String(error), 'danger');
-    } finally {
-      startButton.disabled = false;
+    function element(tag, className, content) {
+      const node = document.createElement(tag)
+      if (className) node.className = className
+      if (content !== undefined) node.textContent = content
+      return node
     }
-  }
 
-  async function pollLogin() {
-    try {
-      const value = options();
-      const result = await window.homebridge.request('/sharing/qr/poll', {
-        qrToken,
-        userCode: value.userCode,
-        clientId: value.clientId,
-        appSchema: value.appSchema,
-        endpoint: value.endpoint,
-      });
-      if (result.state === 'pending') return;
-      stopPolling();
-      qrPanel.classList.add('d-none');
-      setStatus('Connected. Save the configuration and restart Homebridge.', 'success');
-      window.homebridge.toast.success('Tuya account authorization complete.');
-    } catch (error) {
-      stopPolling();
-      setStatus(error.message || String(error), 'danger');
+    function options() {
+      platform.options ||= {}
+      return platform.options
     }
-  }
 
-  function stopPolling() {
-    if (pollTimer) window.clearInterval(pollTimer);
-    pollTimer = undefined;
-  }
+    function ensureDefaults() {
+      platform.platform ||= 'TuyaPlatform'
+      platform.name ||= 'Tuya'
+      const value = options()
+      value.projectType ||= '3'
+      value.appSchema ||= 'tuyaSmart'
+      if (value.generateWeatherAccessory === undefined) value.generateWeatherAccessory = false
+      value.weatherAPI ||= 'open-meteo'
+      if (value.forceIPv4 === undefined) value.forceIPv4 = false
+    }
 
-  function setStatus(message, kind) {
-    status.className = `mt-2 text-${kind}`;
-    status.textContent = message;
-  }
-})();
+    function appLabel(schema = options().appSchema) {
+      return schema === 'smartlife' ? 'Smart Life' : 'Tuya Smart'
+    }
+
+    function hasDeveloperCredentials() {
+      const value = options()
+      if (value.projectType === '1') return Boolean(value.endpoint && value.accessId && value.accessKey)
+      if (value.projectType === '2') return Boolean(value.accessId && value.accessKey && value.countryCode && value.username && value.password)
+      return false
+    }
+
+    function setCallout(node, message, tone = '') {
+      node.className = `tuya-callout${tone ? ` tuya-callout-${tone}` : ''}`
+      node.textContent = message
+    }
+
+    function renderStats() {
+      const qrMode = options().projectType === '3'
+      const authorized = qrMode ? accountStatus.connected && accountStatus.matchesConfiguration : hasDeveloperCredentials()
+      const auth = byId('tuyaAuthorizationStat')
+      auth.textContent = authorized ? 'Connected' : 'Setup needed'
+      auth.classList.toggle('tuya-stat-good', authorized)
+      byId('tuyaAppStat').textContent = qrMode ? appLabel() : projectLabels[options().projectType]
+      const selectedHomes = (overview.homes || []).filter(home => home.selected).length
+      byId('tuyaHomesStat').textContent = overview.connected ? String(selectedHomes) : (options().homeWhitelist?.length ? String(options().homeWhitelist.length) : 'All')
+      byId('tuyaDevicesStat').textContent = overview.connected ? String((overview.devices || []).length) : '—'
+    }
+
+    function renderProgress() {
+      const qrMode = options().projectType === '3'
+      const configured = qrMode ? Boolean(options().userCode) : hasDeveloperCredentials()
+      const authorized = qrMode ? Boolean(accountStatus.connected && accountStatus.matchesConfiguration) : configured
+      const homesReady = overview.connected || (!qrMode && configured)
+      const steps = [
+        [true, 'Choose connection', projectLabels[options().projectType]],
+        [configured, qrMode ? 'Enter User Code' : 'Enter credentials', configured ? 'Configuration present' : 'Complete account details'],
+        [authorized, qrMode ? 'Authorize app' : 'Connect project', authorized ? 'Ready' : 'Action required'],
+        [homesReady, 'Restart Homebridge', homesReady ? 'Apply accessories' : 'After connection succeeds'],
+      ]
+      const root = byId('tuyaProgress')
+      root.replaceChildren()
+      steps.forEach(([done, title, subtitle], index) => {
+        const step = element('div', `tuya-step${done ? ' tuya-step-done' : ''}`)
+        step.append(element('div', 'tuya-step-number', done ? '✓' : String(index + 1)), element('strong', '', title), element('span', '', subtitle))
+        root.append(step)
+      })
+    }
+
+    function homeIcon() {
+      const wrap = element('div', 'tuya-card-icon')
+      wrap.innerHTML = '<svg viewBox="0 0 24 24"><path d="m3 11 9-7 9 7"></path><path d="M5 10v10h14V10M9 20v-6h6v6"></path></svg>'
+      return wrap
+    }
+
+    function deviceIcon() {
+      const wrap = element('div', 'tuya-card-icon')
+      wrap.innerHTML = '<svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="3"></rect><path d="M9 7h6M9 17h6"></path></svg>'
+      return wrap
+    }
+
+    function badge(label, tone = '') {
+      return element('span', `tuya-badge${tone ? ` tuya-badge-${tone}` : ''}`, label)
+    }
+
+    function renderHomes() {
+      const root = byId('tuyaDashboardHomes')
+      root.replaceChildren()
+      if (!overview.connected || !(overview.homes || []).length) {
+        root.append(element('div', 'tuya-empty', 'Authorize an account to load its homes.'))
+        return
+      }
+      overview.homes.forEach(home => {
+        const card = element('div', 'tuya-home-card')
+        const head = element('div', 'tuya-card-head')
+        const title = element('div', 'tuya-card-title')
+        title.append(element('h4', '', home.name), element('p', 'tuya-mono', `Home ID · ${home.id}`))
+        head.append(homeIcon(), title)
+        const badges = element('div', 'tuya-badges')
+        badges.append(badge(home.selected ? 'Included' : 'Excluded', home.selected ? 'primary' : ''), badge(`${home.deviceCount} devices`), badge(`${home.onlineCount} online`, home.onlineCount ? 'success' : 'warning'))
+        card.append(head, badges)
+        root.append(card)
+      })
+    }
+
+    function renderDevices() {
+      const root = byId('tuyaDashboardDevices')
+      root.replaceChildren()
+      const query = byId('tuyaDeviceSearch').value.trim().toLowerCase()
+      const filter = byId('tuyaDeviceFilter').value
+      const devices = (overview.devices || []).filter(device => {
+        const matchesText = !query || `${device.name} ${device.category} ${device.productName}`.toLowerCase().includes(query)
+        const matchesFilter = filter === 'all'
+          || (filter === 'online' && device.online)
+          || (filter === 'offline' && !device.online)
+          || (filter === 'sub' && device.subDevice)
+        return matchesText && matchesFilter
+      })
+      if (!devices.length) {
+        root.append(element('div', 'tuya-empty', overview.connected ? 'No devices match this view.' : 'No device data loaded yet.'))
+        return
+      }
+      devices.forEach(device => {
+        const card = element('div', 'tuya-device-card')
+        const head = element('div', 'tuya-card-head')
+        const title = element('div', 'tuya-card-title')
+        title.append(element('h4', '', device.name), element('p', '', device.productName || `Tuya category ${device.category}`))
+        head.append(deviceIcon(), title)
+        const badges = element('div', 'tuya-badges')
+        badges.append(badge(device.online ? 'Online' : 'Offline', device.online ? 'success' : 'warning'), badge(device.category || 'unknown', 'primary'))
+        if (device.subDevice) badges.append(badge('Sub-device'))
+        card.append(head, badges)
+        root.append(card)
+      })
+    }
+
+    function renderDashboardMessage() {
+      const message = byId('tuyaDashboardMessage')
+      if (options().projectType !== '3') {
+        setCallout(message, hasDeveloperCredentials()
+          ? 'Developer-project credentials are configured. Restart Homebridge and check the log to confirm discovery.'
+          : 'Complete the selected developer-project credentials on the Account tab.', hasDeveloperCredentials() ? 'success' : '')
+        return
+      }
+      if (!options().userCode) {
+        setCallout(message, 'Choose Tuya Smart or Smart Life, enter its User Code, and authorize a fresh QR code.')
+      } else if (accountStatus.connected && !accountStatus.matchesConfiguration) {
+        setCallout(message, 'Stored credentials belong to a different app, User Code, or integration identity. Authorize this configuration again.', 'warning')
+      } else if (overview.connected) {
+        const online = overview.devices.filter(device => device.online).length
+        setCallout(message, `Connected as ${overview.username || 'the authorized account'}. Tuya returned ${overview.homes.length} home(s) and ${overview.devices.length} device(s); ${online} are online.`, 'success')
+      } else if (accountStatus.connected) {
+        setCallout(message, 'Authorization is stored. Refresh from Tuya to verify homes and devices.', 'success')
+      } else {
+        setCallout(message, 'This User Code has not been authorized on this Homebridge installation.', 'warning')
+      }
+      byId('tuyaDashboardAction').textContent = overview.connected ? 'Manage account' : 'Set up account'
+    }
+
+    function renderMethod() {
+      document.querySelectorAll('[data-project-type]').forEach(button => {
+        button.setAttribute('aria-pressed', String(button.dataset.projectType === options().projectType))
+      })
+      const qrMode = options().projectType === '3'
+      byId('tuyaQrAccount').hidden = !qrMode
+      byId('tuyaDeveloperAccount').hidden = qrMode
+      byId('tuyaDeveloperTitle').textContent = options().projectType === '1' ? 'Custom cloud project' : 'Smart Home cloud project'
+      document.querySelectorAll('[data-smart-home-only]').forEach(field => { field.hidden = options().projectType !== '2' })
+      const badgeNode = byId('tuyaAccountBadge')
+      const connected = accountStatus.connected && accountStatus.matchesConfiguration
+      badgeNode.textContent = connected ? 'Authorized' : 'Not connected'
+      badgeNode.className = `tuya-badge ${connected ? 'tuya-badge-success' : 'tuya-badge-warning'}`
+    }
+
+    function renderAuthStatus() {
+      const node = byId('tuyaAuthStatus')
+      if (!options().userCode) return setCallout(node, 'Enter the User Code, then generate a QR code.')
+      if (accountStatus.connected && !accountStatus.matchesConfiguration) return setCallout(node, 'The stored authorization does not match the current app or User Code. Generate and approve a fresh QR code.', 'warning')
+      if (accountStatus.connected) return setCallout(node, `Authorized${accountStatus.username ? ` as ${accountStatus.username}` : ''}. You can refresh the dashboard or reauthorize at any time.`, 'success')
+      setCallout(node, 'No authorization is stored for this User Code.', 'warning')
+    }
+
+    function renderHomePicker() {
+      const root = byId('tuyaHomePicker')
+      root.replaceChildren()
+      if (!overview.connected || !(overview.homes || []).length) {
+        const empty = element('div', 'tuya-empty', 'Connect and refresh the account to choose homes visually.')
+        empty.style.gridColumn = '1 / -1'
+        root.append(empty)
+        return
+      }
+      overview.homes.forEach(home => {
+        const label = element('label', 'tuya-home-option')
+        const input = element('input')
+        input.type = 'checkbox'
+        input.value = home.id
+        input.checked = home.selected
+        input.addEventListener('change', updateManualHomesFromPicker)
+        const copy = element('span')
+        copy.append(element('strong', '', home.name), element('span', '', `${home.deviceCount} devices · ${home.id}`))
+        label.append(input, copy)
+        root.append(label)
+      })
+    }
+
+    function updateManualHomesFromPicker() {
+      const inputs = [...byId('tuyaHomePicker').querySelectorAll('input[type="checkbox"]')]
+      const selected = inputs.filter(input => input.checked).map(input => input.value)
+      if (inputs.length && selected.length === 0) {
+        inputs.forEach(input => { input.checked = true })
+        byId('tuyaManualHomes').value = ''
+        homebridge.toast.info('At least one home must be included. All homes were selected.', 'Home selection')
+        return
+      }
+      byId('tuyaManualHomes').value = selected.length === inputs.length ? '' : selected.join('\n')
+    }
+
+    function renderPackageDetails() {
+      byId('tuyaVersionBadge').textContent = about.version ? `v${about.version}` : 'Unknown'
+      const rows = [
+        ['Package', about.packageName || 'homebridge-tuya-ultimate'],
+        ['Installed version', about.version || 'Unknown'],
+        ['Node.js runtime', about.node || 'Unknown'],
+        ['Homebridge support', about.homebridge || 'Unknown'],
+        ['Connection mode', projectLabels[options().projectType]],
+      ]
+      const root = byId('tuyaPackageDetails')
+      root.replaceChildren()
+      rows.forEach(([label, value]) => root.append(element('dt', '', label), element('dd', '', value)))
+    }
+
+    function syncFormsFromConfig() {
+      ensureDefaults()
+      const value = options()
+      byId('tuyaAppSchema').value = value.appSchema || 'tuyaSmart'
+      byId('tuyaUserCode').value = value.userCode || ''
+      byId('tuyaEndpoint').value = value.endpoint || ''
+      byId('tuyaAccessId').value = value.accessId || ''
+      byId('tuyaAccessKey').value = value.accessKey || ''
+      byId('tuyaCountryCode').value = value.countryCode || ''
+      byId('tuyaDeveloperApp').value = value.appSchema || 'tuyaSmart'
+      byId('tuyaUsername').value = value.username || ''
+      byId('tuyaPassword').value = value.password || ''
+      byId('tuyaManualHomes').value = Array.isArray(value.homeWhitelist) ? value.homeWhitelist.join('\n') : ''
+      byId('tuyaPlatformName').value = platform.name || 'Tuya'
+      byId('tuyaWeather').checked = value.generateWeatherAccessory === true
+      byId('tuyaWeatherApi').value = value.weatherAPI || 'open-meteo'
+      byId('tuyaForceIpv4').checked = value.forceIPv4 === true
+      byId('tuyaDebug').checked = value.debug === true
+      byId('tuyaDebugLevel').value = value.debugLevel || ''
+    }
+
+    function collectAccountForm() {
+      const value = options()
+      if (value.projectType === '3') {
+        value.appSchema = byId('tuyaAppSchema').value
+        value.userCode = byId('tuyaUserCode').value.trim()
+      } else {
+        value.endpoint = byId('tuyaEndpoint').value.trim() || undefined
+        value.accessId = byId('tuyaAccessId').value.trim()
+        value.accessKey = byId('tuyaAccessKey').value
+        if (value.projectType === '2') {
+          value.countryCode = Number(byId('tuyaCountryCode').value) || undefined
+          value.appSchema = byId('tuyaDeveloperApp').value
+          value.username = byId('tuyaUsername').value.trim()
+          value.password = byId('tuyaPassword').value
+        }
+      }
+    }
+
+    function collectCommonForm() {
+      const value = options()
+      platform.name = byId('tuyaPlatformName').value.trim() || 'Tuya'
+      const homeIds = byId('tuyaManualHomes').value.split(/[\n,]/).map(item => item.trim()).filter(Boolean)
+      value.homeWhitelist = homeIds.length ? homeIds : undefined
+      value.generateWeatherAccessory = byId('tuyaWeather').checked
+      value.weatherAPI = byId('tuyaWeatherApi').value
+      value.forceIPv4 = byId('tuyaForceIpv4').checked
+      value.debug = byId('tuyaDebug').checked
+      value.debugLevel = byId('tuyaDebugLevel').value.trim() || undefined
+    }
+
+    function validateAccount() {
+      const value = options()
+      if (value.projectType === '3' && !value.userCode) throw new Error('Enter the User Code from the selected Tuya app.')
+      if ((value.projectType === '1' || value.projectType === '2') && (!value.accessId || !value.accessKey)) throw new Error('Access ID and Access Secret are required.')
+      if (value.projectType === '1' && !value.endpoint) throw new Error('A cloud endpoint is required for a Custom project.')
+      if (value.projectType === '2' && (!value.countryCode || !value.username || !value.password)) throw new Error('Country code, app username, and app password are required for a Smart Home project.')
+    }
+
+    async function savePlatform(message = 'Configuration saved. Restart Homebridge to apply accessory changes.') {
+      collectAccountForm()
+      collectCommonForm()
+      validateAccount()
+      await homebridge.updatePluginConfig([platform])
+      await homebridge.savePluginConfig()
+      if (message) homebridge.toast.success(message, 'Homebridge Tuya Ultimate')
+      renderAll()
+    }
+
+    async function refreshAccount(showErrors = true) {
+      stopPolling()
+      collectAccountForm()
+      if (options().projectType !== '3' || !options().userCode) {
+        accountStatus = { connected: false }
+        overview = { connected: false, homes: [], devices: [] }
+        lastUpdatedAt = new Date()
+        renderAll()
+        return
+      }
+      byId('tuyaRefresh').disabled = true
+      byId('tuyaCheckAccount').disabled = true
+      try {
+        const payload = {
+          userCode: options().userCode,
+          clientId: options().clientId,
+          appSchema: options().appSchema,
+          homeWhitelist: options().homeWhitelist,
+        }
+        accountStatus = await homebridge.request('/sharing/status', payload)
+        overview = accountStatus.connected && accountStatus.matchesConfiguration
+          ? await homebridge.request('/sharing/overview', payload)
+          : { connected: false, homes: [], devices: [] }
+        lastUpdatedAt = new Date()
+      } catch (error) {
+        overview = { connected: false, homes: [], devices: [] }
+        lastUpdatedAt = new Date()
+        if (showErrors) homebridge.toast.error(errorMessage(error), 'Could not refresh Tuya account')
+      } finally {
+        byId('tuyaRefresh').disabled = false
+        byId('tuyaCheckAccount').disabled = false
+        renderAll()
+      }
+    }
+
+    async function startQrLogin() {
+      stopPolling()
+      collectAccountForm()
+      try {
+        validateAccount()
+        byId('tuyaStartQr').disabled = true
+        setCallout(byId('tuyaAuthStatus'), 'Saving settings and requesting a fresh QR code…')
+        await savePlatform('')
+        const value = options()
+        const result = await homebridge.request('/sharing/qr/start', {
+          userCode: value.userCode,
+          clientId: value.clientId,
+          appSchema: value.appSchema,
+          endpoint: value.endpoint,
+          qrSchema: value.qrSchema,
+        })
+        qrToken = result.qrToken
+        byId('tuyaQrImage').src = result.qrImage
+        byId('tuyaQrAppName').textContent = appLabel()
+        byId('tuyaQrPanel').hidden = false
+        setCallout(byId('tuyaQrStatus'), 'Waiting for scan and confirmation…')
+        byId('tuyaQrPanel').scrollIntoView({ behavior: 'smooth', block: 'start' })
+        pollTimer = window.setInterval(pollLogin, 2200)
+      } catch (error) {
+        setCallout(byId('tuyaAuthStatus'), errorMessage(error), 'danger')
+        homebridge.toast.error(errorMessage(error), 'Could not start QR authorization')
+      } finally {
+        byId('tuyaStartQr').disabled = false
+        homebridge.fixScrollHeight()
+      }
+    }
+
+    async function pollLogin() {
+      try {
+        const value = options()
+        const result = await homebridge.request('/sharing/qr/poll', {
+          qrToken,
+          userCode: value.userCode,
+          clientId: value.clientId,
+          appSchema: value.appSchema,
+          endpoint: value.endpoint,
+        })
+        if (result.state === 'pending') return
+        stopPolling()
+        accountStatus = { connected: true, matchesConfiguration: true, username: result.username }
+        setCallout(byId('tuyaQrStatus'), 'Authorization complete. Loading homes and devices…', 'success')
+        homebridge.toast.success('Tuya account authorization complete.', 'Connected')
+        await refreshAccount(false)
+        window.setTimeout(() => { byId('tuyaQrPanel').hidden = true; homebridge.fixScrollHeight() }, 1400)
+      } catch (error) {
+        stopPolling()
+        setCallout(byId('tuyaQrStatus'), `${errorMessage(error)} Generate a fresh code and try again.`, 'danger')
+      }
+    }
+
+    function stopPolling() {
+      if (pollTimer) window.clearInterval(pollTimer)
+      pollTimer = undefined
+    }
+
+    function selectTab(name) {
+      document.querySelectorAll('[data-tuya-tab]').forEach(button => button.setAttribute('aria-selected', String(button.dataset.tuyaTab === name)))
+      document.querySelectorAll('[data-tuya-panel]').forEach(panel => { panel.hidden = panel.dataset.tuyaPanel !== name })
+      if (name !== 'advanced' && schemaVisible) {
+        schemaVisible = false
+        homebridge.hideSchemaForm()
+        byId('tuyaToggleSchema').textContent = 'Open full schema editor'
+      }
+      homebridge.fixScrollHeight()
+    }
+
+    function toggleSchema() {
+      schemaVisible = !schemaVisible
+      if (schemaVisible) homebridge.showSchemaForm()
+      else homebridge.hideSchemaForm()
+      byId('tuyaToggleSchema').textContent = schemaVisible ? 'Close full schema editor' : 'Open full schema editor'
+      window.setTimeout(() => homebridge.fixScrollHeight(), 100)
+    }
+
+    function renderAll() {
+      renderStats()
+      renderProgress()
+      renderDashboardMessage()
+      renderHomes()
+      renderDevices()
+      renderMethod()
+      renderAuthStatus()
+      renderHomePicker()
+      renderPackageDetails()
+      byId('tuyaLastUpdated').textContent = lastUpdatedAt ? `Last checked ${lastUpdatedAt.toLocaleTimeString()}` : 'Authorization has not been checked yet.'
+      homebridge.fixScrollHeight()
+    }
+
+    document.querySelectorAll('[data-tuya-tab]').forEach(button => button.addEventListener('click', () => selectTab(button.dataset.tuyaTab)))
+    document.querySelectorAll('[data-project-type]').forEach(button => button.addEventListener('click', () => {
+      collectAccountForm()
+      options().projectType = button.dataset.projectType
+      accountStatus = { connected: false }
+      overview = { connected: false, homes: [], devices: [] }
+      renderAll()
+    }))
+    byId('tuyaTheme').addEventListener('change', event => {
+      byId('tuyaApp').dataset.theme = event.target.value
+      window.localStorage.setItem('tuya-ultimate-theme', event.target.value)
+    })
+    byId('tuyaDashboardAction').addEventListener('click', () => selectTab('account'))
+    byId('tuyaRefresh').addEventListener('click', () => refreshAccount())
+    byId('tuyaCheckAccount').addEventListener('click', () => refreshAccount())
+    byId('tuyaStartQr').addEventListener('click', startQrLogin)
+    byId('tuyaRegenerateQr').addEventListener('click', startQrLogin)
+    byId('tuyaCancelQr').addEventListener('click', () => { stopPolling(); byId('tuyaQrPanel').hidden = true; homebridge.fixScrollHeight() })
+    byId('tuyaSaveAccount').addEventListener('click', () => savePlatform().catch(error => homebridge.toast.error(errorMessage(error), 'Could not save account settings')))
+    byId('tuyaSaveHomes').addEventListener('click', () => savePlatform().then(() => refreshAccount(false)).catch(error => homebridge.toast.error(errorMessage(error), 'Could not save home selection')))
+    byId('tuyaSaveSettings').addEventListener('click', () => savePlatform().catch(error => homebridge.toast.error(errorMessage(error), 'Could not save settings')))
+    byId('tuyaToggleSchema').addEventListener('click', toggleSchema)
+    byId('tuyaDeviceSearch').addEventListener('input', renderDevices)
+    byId('tuyaDeviceFilter').addEventListener('change', renderDevices)
+    byId('tuyaAppSchema').addEventListener('change', () => {
+      collectAccountForm()
+      accountStatus = { connected: false }
+      overview = { connected: false, homes: [], devices: [] }
+      renderAll()
+    })
+    window.addEventListener('beforeunload', stopPolling)
+
+    if (!homebridge) {
+      byId('tuyaAuthorizationStat').textContent = 'Preview'
+      byId('tuyaAppStat').textContent = 'QR login'
+      byId('tuyaHomesStat').textContent = '—'
+      byId('tuyaDevicesStat').textContent = '—'
+      return
+    }
+
+    homebridge.addEventListener('ready', async () => {
+      homebridge.hideSchemaForm()
+      const selectedTheme = window.localStorage.getItem('tuya-ultimate-theme') || 'auto'
+      byId('tuyaTheme').value = selectedTheme
+      byId('tuyaApp').dataset.theme = selectedTheme
+      try {
+        const [configs, packageInfo] = await Promise.all([homebridge.getPluginConfig(), homebridge.request('/about')])
+        platform = configs[0] || platform
+        about = packageInfo || {}
+        ensureDefaults()
+        syncFormsFromConfig()
+        renderAll()
+        homebridge.addEventListener('configChanged', event => {
+          platform = event.data || platform
+          ensureDefaults()
+          syncFormsFromConfig()
+          renderAll()
+        })
+        await refreshAccount(false)
+      } catch (error) {
+        homebridge.toast.error(errorMessage(error), 'Could not load Homebridge Tuya Ultimate settings')
+        renderAll()
+      }
+    })
+  })()
 </script>
