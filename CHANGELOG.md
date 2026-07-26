@@ -10,6 +10,9 @@
 ### Changed
  - Updated the MQTT and UUID runtime dependencies to versions with no known production audit findings.
 
+### Fixed
+ - Map `infrared_ac` virtual remotes to the thermostat-style IR air-conditioner accessory instead of generic IR button switches.
+
 ### Security
  - Account tokens are kept outside `config.json` in a `0600` persist file and are renewed atomically.
  - Compatibility mode uses Home Assistant's public Tuya client ID and QR schema by default, with an explicit coexistence warning and optional identity overrides.

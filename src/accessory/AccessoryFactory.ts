@@ -311,7 +311,6 @@ function resolveAccessoryByCategory(platform: TuyaPlatform, accessory: PlatformA
     case 'infrared_tv':
     case 'infrared_stb':
     case 'infrared_box':
-    case 'infrared_ac':
     case 'infrared_fan':
     case 'infrared_light':
     case 'infrared_amplifier':
@@ -321,6 +320,9 @@ function resolveAccessoryByCategory(platform: TuyaPlatform, accessory: PlatformA
     case 'infrared_humidifier':
       // Since it's a DIY, it might be better to handle it with resolveAccessoryByProductID.
       return new IRControlHubSubAccessory(platform, accessory);
+
+    case 'infrared_ac':
+      return new IRAirConditionerAccessory(platform, accessory);
 
     default:
       return undefined;
