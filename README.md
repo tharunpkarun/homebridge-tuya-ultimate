@@ -113,6 +113,7 @@ Both accounts then reach the same devices, while each integration owns a differe
 | Automatic token renewal | ✅ | Refreshes and atomically persists account credentials |
 | Tap-to-Run scenes | ✅ | Enabled scenes appear as HomeKit switches |
 | Raw datapoint conversion | ✅ | Includes Tuya's official boolean, enum, range, light, timer, lock, vacuum, and meter conversion strategies |
+| IR air-conditioner climate telemetry | ✅ | Publishes the IR hub's ambient temperature and humidity with full AC modes and target-temperature control |
 | Home whitelist | ✅ | Include only selected Tuya Home IDs |
 | Device and schema overrides | ✅ | Rename datapoints, correct types/ranges, transform values, hide devices, or change categories |
 | Developer-project modes | ✅ | Existing Custom and Smart Home configurations remain available |
@@ -143,9 +144,10 @@ At startup, the plugin:
 2. Refreshes it when it is within one minute of expiry.
 3. Fetches homes, devices, device specifications, report strategies, and scenes.
 4. Converts each Tuya device into the existing internal device model.
-5. Applies overrides in device, product, then global order.
-6. Creates or restores stable HomeKit accessories using the Tuya device ID.
-7. Opens the Tuya MQTT stream and subscribes to the selected homes and devices.
+5. Resolves IR remotes, their parent hubs, supported modes, current state, and command metadata.
+6. Applies overrides in device, product, then global order.
+7. Creates or restores stable HomeKit accessories using the Tuya device ID.
+8. Opens the Tuya MQTT stream and subscribes to the selected homes and devices.
 
 ### Live datapoint reports
 
@@ -210,7 +212,7 @@ Support is determined by both the Tuya category and the datapoints actually expo
 | Security | `ms`, `jtmspro`, `mal`, `mcs`, `zd` | Lock, Security System, Contact, Motion |
 | Cameras and doorbells | `sp`, `wxml` | Motion, Doorbell, optional stream |
 | Valves and feeders | `ggq`, `sfkzq`, `cwwsq` | Valve, Switch |
-| IR hubs and remotes | `wnykq`, `hwktwkq`, `wsdykq`, `infrared_*` | Sensors, Switch, Heater Cooler |
+| IR hubs and remotes | `wnykq`, `hwktwkq`, `wsdykq`, `infrared_*` | Sensors, Switch, Heater Cooler, temperature and humidity |
 | Scenes | Virtual `scene` devices | Switch |
 
 See [Supported Devices](SUPPORTED_DEVICES.md) for the complete category matrix and Tuya documentation links.
@@ -249,7 +251,9 @@ Tuya camera discovery can expose motion, doorbell, and product-dependent stream 
 
 ### IR control
 
-The inherited accessory mappings cover Tuya IR hubs, learned remotes, generic remotes, and air conditioners. These handlers use product-specific IR cloud endpoints. A device appearing in the app does not guarantee that those endpoints are granted to the QR account-sharing identity.
+The inherited accessory mappings cover Tuya IR hubs, learned remotes, generic remotes, and air conditioners. IR air conditioners appear in Apple Home as climate accessories with power, supported operating modes, target temperature, and fan-speed controls. When the physical IR hub reports `temp_current` or `humidity_current`, those live ambient readings are attached to the same HomeKit AC accessory instead of displaying placeholder zero values.
+
+The plugin resolves each virtual IR remote against its physical hub before applying `deviceOverrides`. You can therefore hide the physical hub from Apple Home while retaining the remote's parent identity, mode table, current state, sensor readings, and command endpoint. These handlers use product-specific IR cloud endpoints; a device appearing in the Tuya app does not guarantee that every endpoint is granted to the QR account-sharing identity.
 
 ### Device overrides
 
@@ -267,6 +271,7 @@ They can:
 - Correct ranges, scale, step, or enum options
 - Transform values with `onGet` and `onSet`
 - Hide a datapoint, device, product, or scene
+- Hide a physical IR hub without breaking its exposed virtual AC remote
 - Publish an accessory externally with `unbridged`
 - Enable adaptive lighting on compatible lights
 - Read garage-door state from `doorcontact_state`

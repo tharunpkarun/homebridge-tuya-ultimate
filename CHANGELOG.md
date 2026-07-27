@@ -2,8 +2,18 @@
 
 ## Unreleased
 
+## [2.6.1] - (2026.7.27)
+
+### Added
+ - Expose an IR air conditioner's ambient temperature and humidity from its physical controller in Apple Home.
+
 ### Changed
  - Renamed the user-facing plugin title from Homebridge Tuya Ultimate to Tuya Ultimate.
+
+### Fixed
+ - Resolve IR remotes before category overrides so a hidden physical hub still supplies the virtual AC's parent identity, supported modes, live state, sensors, and command endpoint.
+ - Prevent the IR AC power handler from accessing a fan service when the remote does not support fan-only mode.
+ - Restore full HomeKit climate controls instead of a basic switch when the physical IR hub is hidden.
 
 ## [2.6.0] - (2026.7.26)
 

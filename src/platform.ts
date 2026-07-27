@@ -174,6 +174,12 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       return;
     }
 
+    // Infrared hubs must still have their original Tuya category while their
+    // remotes are resolved. A user may hide the physical hub while exposing
+    // one of its virtual remotes; applying overrides first would make the hub
+    // undiscoverable and leave the remote without its parent, keys or state.
+    await this.deviceManager.updateInfraredRemotes(devices);
+
     // override device category
     for (const device of devices) {
       const deviceConfig = this.getDeviceConfig(device);
@@ -193,8 +199,6 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       this.log.warn('Unbridge %o category %o', device.name, device.category );
       device.unbridged = deviceConfig.unbridged;
     }
-
-    await this.deviceManager.updateInfraredRemotes(devices);
 
     this.log.info(`Got ${devices.length} device(s) and scene(s).`);
     const file = path.join(this.api.user.persistPath(), `TuyaDeviceList.${this.deviceManager.api.tokenInfo.uid}.json`);

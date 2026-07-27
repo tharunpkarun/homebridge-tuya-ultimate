@@ -21,6 +21,7 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
     this.configureAirConditioner();
     this.configureDehumidifier();
     this.configureFan();
+    this.configureAmbientHumidity();
   }
 
   configureAirConditioner() {
@@ -38,7 +39,6 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
           // Turn off Dehumidifier & Fan
           this.supportDehumidifier() && this.dehumidifierService().getCharacteristic(this.Characteristic.Active).updateValue(INACTIVE);
           this.supportFan() && this.fanService().getCharacteristic(this.Characteristic.Active).updateValue(INACTIVE);
-          this.fanService().getCharacteristic(this.Characteristic.Active).value = INACTIVE;
         }
 
         if (value === ACTIVE && ![AC_MODE_COOL, AC_MODE_HEAT, AC_MODE_AUTO].includes(this.getMode())) {
@@ -116,13 +116,7 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
       .setProps({ validValues: [DEHUMIDIFIER] });
 
     service.getCharacteristic(this.Characteristic.CurrentRelativeHumidity)
-      .onGet(() => {
-        const handler = this.getParentAccessory().accessory
-          .getService(this.Service.HumiditySensor)
-          ?.getCharacteristic(this.Characteristic.CurrentRelativeHumidity)['getHandler'];
-        const humidity = handler ? handler() : 0;
-        return humidity;
-      });
+      .onGet(() => this.getAmbientHumidity());
 
     // Optional Characteristics
     this.configureRotationSpeed(service);
@@ -238,8 +232,40 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
     return [min, max];
   }
 
-  getParentAccessory() {
-    return this.platform.accessoryHandlers.find(accessory => accessory.device.id === this.device.parent_id)!;
+  getParentDevice() {
+    return this.deviceManager.getDevice(this.device.parent_id!);
+  }
+
+  getParentSensorValue(code: string) {
+    const parent = this.getParentDevice();
+    const status = parent?.status?.find(item => item.code === code);
+    if (status?.value === undefined || status.value === null) {
+      return undefined;
+    }
+
+    const schema = parent?.schema?.find(item => item.code === code);
+    const property = schema?.property;
+    const scale = property && typeof property === 'object' && 'scale' in property
+      ? Number(property.scale)
+      : 0;
+    const divisor = Math.pow(10, scale || 0);
+    const value = Number(status.value) / divisor;
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  getAmbientTemperature() {
+    return this.getParentSensorValue('temp_current') ?? this.getTemp();
+  }
+
+  getAmbientHumidity() {
+    return this.getParentSensorValue('humidity_current') ?? 0;
+  }
+
+  configureAmbientHumidity() {
+    const service = this.accessory.getService(this.Service.HumiditySensor)
+      || this.accessory.addService(this.Service.HumiditySensor, this.accessory.displayName + ' Humidity');
+    service.getCharacteristic(this.Characteristic.CurrentRelativeHumidity)
+      .onGet(() => this.getAmbientHumidity());
   }
 
   configureTargetState() {
@@ -280,13 +306,7 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
 
   configureCurrentTemperature() {
     this.mainService().getCharacteristic(this.Characteristic.CurrentTemperature)
-      .onGet(() => {
-        const handler = this.getParentAccessory().accessory
-          .getService(this.Service.TemperatureSensor)
-          ?.getCharacteristic(this.Characteristic.CurrentTemperature)['getHandler'];
-        const temp = handler ? handler() : this.getTemp();
-        return temp;
-      });
+      .onGet(() => this.getAmbientTemperature());
   }
 
   configureTargetFanState(service) {
