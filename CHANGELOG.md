@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## [2.6.3] - (2026.7.30)
+
+### Changed
+ - Rename the legacy Smart Home developer option to Tuya Developer Cloud and report its saved credentials as Configured instead of Connected.
+
+### Fixed
+ - Detect stored Smart Life or Tuya Smart QR authorizations when developer-project mode is selected and offer to reuse them without scanning another QR code.
+ - Keep QR account recovery metadata token-free while loading it from Homebridge's protected credential storage.
+
 ## [2.6.2] - (2026.7.30)
 
 ### Changed

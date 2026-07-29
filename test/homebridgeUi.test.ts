@@ -24,6 +24,9 @@ describe('Homebridge custom UI', () => {
           homebridge: '^1.8.0 || ^2.0.0',
         };
       }
+      if (route === '/sharing/accounts') {
+        return { accounts: [] };
+      }
       if (route === '/sharing/status') {
         return { connected: true, matchesConfiguration: true, username: 'Test account' };
       }
@@ -136,6 +139,7 @@ describe('Homebridge custom UI', () => {
             hideSchemaForm: jest.fn(),
             request: jest.fn(async (route: string) => {
               if (route === '/about') return {};
+              if (route === '/sharing/accounts') return { accounts: [] };
               if (route === '/sharing/status') return { connected: true, matchesConfiguration: true };
               if (route === '/sharing/overview') {
                 return {
@@ -169,6 +173,104 @@ describe('Homebridge custom UI', () => {
     checkboxes[1].click();
     expect(checkboxes.every(input => input.checked)).toBe(true);
     expect(info).toHaveBeenCalledWith('At least one home must be included. All homes were selected.', 'Home selection');
+
+    dom.window.close();
+  });
+
+  test('offers a stored QR authorization when developer-project mode is selected', async () => {
+    const listeners = new Map<string, UiEventHandler[]>();
+    const updatePluginConfig = jest.fn();
+    const savePluginConfig = jest.fn();
+    const request = jest.fn(async (route: string) => {
+      if (route === '/about') return {};
+      if (route === '/sharing/accounts') {
+        return {
+          accounts: [{
+            userCode: 'stored-user',
+            clientId: 'stored-client',
+            appSchema: 'smartlife',
+            username: 'Stored account',
+          }],
+        };
+      }
+      if (route === '/sharing/status') {
+        return { connected: true, matchesConfiguration: true, username: 'Stored account' };
+      }
+      if (route === '/sharing/overview') {
+        return {
+          connected: true,
+          username: 'Stored account',
+          homes: [{ id: 'home-1', name: 'Recovered home', selected: true, deviceCount: 1, onlineCount: 1 }],
+          devices: [{ id: 'device-1', name: 'Recovered device', category: 'kg', online: true }],
+        };
+      }
+      throw new Error(`Unexpected UI request: ${route}`);
+    });
+    const html = fs.readFileSync(path.join(__dirname, '..', 'homebridge-ui', 'public', 'index.html'), 'utf8');
+    const dom = new JSDOM(html, {
+      beforeParse(window) {
+        window.HTMLElement.prototype.scrollIntoView = jest.fn();
+        Object.defineProperty(window, 'homebridge', {
+          configurable: true,
+          value: {
+            addEventListener(name: string, listener: UiEventHandler) {
+              listeners.set(name, [...(listeners.get(name) || []), listener]);
+            },
+            fixScrollHeight: jest.fn(),
+            getPluginConfig: jest.fn(async () => [{
+              platform: 'TuyaPlatform',
+              name: 'Tuya',
+              options: {
+                projectType: '2',
+                appSchema: 'smartlife',
+                accessId: 'access-id',
+                accessKey: 'access-key',
+                countryCode: 91,
+                username: 'developer@example.test',
+                password: 'password',
+              },
+            }]),
+            hideSchemaForm: jest.fn(),
+            request,
+            savePluginConfig,
+            showSchemaForm: jest.fn(),
+            toast: { error: jest.fn(), info: jest.fn(), success: jest.fn() },
+            updatePluginConfig,
+          },
+        });
+      },
+      runScripts: 'dangerously',
+      url: 'http://127.0.0.1/plugin-config',
+    });
+
+    await Promise.all((listeners.get('ready') || []).map(listener => listener()));
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const document = dom.window.document;
+    expect(document.getElementById('tuyaAuthorizationStat')?.textContent).toBe('Configured');
+    expect(document.getElementById('tuyaDashboardMessage')?.textContent).toContain('Stored Smart Life QR authorization was found');
+
+    (document.querySelector('[data-tuya-tab="account"]') as HTMLButtonElement).click();
+    expect(document.getElementById('tuyaStoredQrRecovery')?.hidden).toBe(false);
+    expect(document.getElementById('tuyaStoredQrRecoveryMessage')?.textContent).toContain('Stored account');
+
+    (document.getElementById('tuyaUseStoredQr') as HTMLButtonElement).click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(updatePluginConfig).toHaveBeenCalledWith([
+      expect.objectContaining({
+        options: expect.objectContaining({
+          projectType: '3',
+          appSchema: 'smartlife',
+          userCode: 'stored-user',
+          clientId: 'stored-client',
+        }),
+      }),
+    ]);
+    expect(savePluginConfig).toHaveBeenCalled();
+    expect(document.getElementById('tuyaAuthorizationStat')?.textContent).toBe('Connected');
+    expect(document.getElementById('tuyaDashboardHomes')?.textContent).toContain('Recovered home');
 
     dom.window.close();
   });

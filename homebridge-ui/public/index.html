@@ -303,7 +303,7 @@
           </button>
           <button class="tuya-method" type="button" data-project-type="2" aria-pressed="false">
             <span class="tuya-method-icon"><svg viewBox="0 0 24 24"><path d="M12 3a5 5 0 0 0-5 5v3l-2 3v1h14v-1l-2-3V8a5 5 0 0 0-5-5zM9 19h6"></path></svg></span>
-            <strong>Smart Home project</strong>
+            <strong>Tuya Developer Cloud project</strong>
             <span>For an existing Tuya Cloud project linked to a Smart Life or Tuya Smart account.</span>
           </button>
           <button class="tuya-method" type="button" data-project-type="1" aria-pressed="false">
@@ -311,6 +311,13 @@
             <strong>Custom project</strong>
             <span>For industry projects and custom Tuya Cloud endpoints.</span>
           </button>
+        </div>
+        <div id="tuyaStoredQrRecovery" class="tuya-callout tuya-callout-warning tuya-mt-12" hidden>
+          <strong id="tuyaStoredQrRecoveryTitle">Stored QR authorization found</strong><br>
+          <span id="tuyaStoredQrRecoveryMessage"></span>
+          <div class="tuya-toolbar tuya-mt-10">
+            <button id="tuyaUseStoredQr" class="tuya-button tuya-button-primary" type="button">Use stored QR authorization</button>
+          </div>
         </div>
       </div>
 
@@ -369,7 +376,7 @@
           <button id="tuyaSaveAccount" class="tuya-button tuya-button-primary" type="button">Save account settings</button>
         </div>
         <div class="tuya-form-grid">
-          <div class="tuya-field tuya-field-wide"><label for="tuyaEndpoint">Cloud endpoint</label><input id="tuyaEndpoint" class="tuya-input tuya-mono" type="url" placeholder="https://openapi.tuyaus.com"><span class="tuya-help">Required for Custom projects; optional override for Smart Home projects.</span></div>
+          <div class="tuya-field tuya-field-wide"><label for="tuyaEndpoint">Cloud endpoint</label><input id="tuyaEndpoint" class="tuya-input tuya-mono" type="url" placeholder="https://openapi.tuyaus.com"><span class="tuya-help">Required for Custom projects; optional override for Tuya Developer Cloud projects.</span></div>
           <div class="tuya-field"><label for="tuyaAccessId">Access ID</label><input id="tuyaAccessId" class="tuya-input tuya-mono" type="text" autocomplete="off"></div>
           <div class="tuya-field"><label for="tuyaAccessKey">Access Secret</label><input id="tuyaAccessKey" class="tuya-input tuya-mono" type="password" autocomplete="new-password"></div>
           <div class="tuya-field" data-smart-home-only><label for="tuyaCountryCode">Country code</label><input id="tuyaCountryCode" class="tuya-input" type="number" min="1" placeholder="91"></div>
@@ -450,10 +457,11 @@
     const homebridge = window.homebridge
     const byId = id => document.getElementById(id)
     const errorMessage = error => error?.error?.message || error?.message || String(error)
-    const projectLabels = { '1': 'Custom project', '2': 'Smart Home', '3': 'QR login' }
+    const projectLabels = { '1': 'Custom project', '2': 'Tuya Developer Cloud', '3': 'QR login' }
     let platform = { platform: 'TuyaPlatform', name: 'Tuya', options: {} }
     let overview = { connected: false, homes: [], devices: [] }
     let accountStatus = { connected: false }
+    let storedAccounts = []
     let about = {}
     let qrToken
     let pollTimer
@@ -494,6 +502,18 @@
       return false
     }
 
+    function storedQrCandidate() {
+      if (options().projectType === '3' || !storedAccounts.length) return undefined
+      const value = options()
+      const exactUser = value.userCode
+        ? storedAccounts.find(account => account.userCode === value.userCode)
+        : undefined
+      if (exactUser) return exactUser
+      const sameApp = storedAccounts.filter(account => account.appSchema === value.appSchema)
+      if (sameApp.length === 1) return sameApp[0]
+      return storedAccounts.length === 1 ? storedAccounts[0] : undefined
+    }
+
     function setCallout(node, message, tone = '') {
       node.className = `tuya-callout${tone ? ` tuya-callout-${tone}` : ''}`
       node.textContent = message
@@ -503,7 +523,7 @@
       const qrMode = options().projectType === '3'
       const authorized = qrMode ? accountStatus.connected && accountStatus.matchesConfiguration : hasDeveloperCredentials()
       const auth = byId('tuyaAuthorizationStat')
-      auth.textContent = authorized ? 'Connected' : 'Setup needed'
+      auth.textContent = authorized ? (qrMode ? 'Connected' : 'Configured') : 'Setup needed'
       auth.classList.toggle('tuya-stat-good', authorized)
       byId('tuyaAppStat').textContent = qrMode ? appLabel() : projectLabels[options().projectType]
       const selectedHomes = (overview.homes || []).filter(home => home.selected).length
@@ -519,7 +539,7 @@
       const steps = [
         [true, 'Choose connection', projectLabels[options().projectType]],
         [configured, qrMode ? 'Enter User Code' : 'Enter credentials', configured ? 'Configuration present' : 'Complete account details'],
-        [authorized, qrMode ? 'Authorize app' : 'Connect project', authorized ? 'Ready' : 'Action required'],
+        [authorized, qrMode ? 'Authorize app' : 'Configure project', authorized ? (qrMode ? 'Ready' : 'Credentials saved') : 'Action required'],
         [homesReady, 'Restart Homebridge', homesReady ? 'Apply accessories' : 'After connection succeeds'],
       ]
       const root = byId('tuyaProgress')
@@ -551,7 +571,12 @@
       const root = byId('tuyaDashboardHomes')
       root.replaceChildren()
       if (!overview.connected || !(overview.homes || []).length) {
-        root.append(element('div', 'tuya-empty', 'Authorize an account to load its homes.'))
+        const emptyMessage = options().projectType === '3'
+          ? 'Authorize an account to load its homes.'
+          : (storedQrCandidate()
+              ? 'Use the stored QR authorization to load homes here.'
+              : 'Home summaries are available here for QR connections; use Homebridge logs to inspect developer-project discovery.')
+        root.append(element('div', 'tuya-empty', emptyMessage))
         return
       }
       overview.homes.forEach(home => {
@@ -581,7 +606,12 @@
         return matchesText && matchesFilter
       })
       if (!devices.length) {
-        root.append(element('div', 'tuya-empty', overview.connected ? 'No devices match this view.' : 'No device data loaded yet.'))
+        const emptyMessage = overview.connected
+          ? 'No devices match this view.'
+          : (options().projectType === '3'
+              ? 'No device data loaded yet.'
+              : 'Device snapshots are available here after switching to a QR connection.')
+        root.append(element('div', 'tuya-empty', emptyMessage))
         return
       }
       devices.forEach(device => {
@@ -601,9 +631,16 @@
     function renderDashboardMessage() {
       const message = byId('tuyaDashboardMessage')
       if (options().projectType !== '3') {
+        const candidate = storedQrCandidate()
+        if (candidate) {
+          setCallout(message, `Stored ${appLabel(candidate.appSchema)} QR authorization was found, but Tuya Developer Cloud mode is selected. Open Account to use the stored authorization without scanning again.`, 'warning')
+          byId('tuyaDashboardAction').textContent = 'Use QR account'
+          return
+        }
         setCallout(message, hasDeveloperCredentials()
           ? 'Developer-project credentials are configured. Restart Homebridge and check the log to confirm discovery.'
           : 'Complete the selected developer-project credentials on the Account tab.', hasDeveloperCredentials() ? 'success' : '')
+        byId('tuyaDashboardAction').textContent = 'Set up account'
         return
       }
       if (!options().userCode) {
@@ -628,12 +665,21 @@
       const qrMode = options().projectType === '3'
       byId('tuyaQrAccount').hidden = !qrMode
       byId('tuyaDeveloperAccount').hidden = qrMode
-      byId('tuyaDeveloperTitle').textContent = options().projectType === '1' ? 'Custom cloud project' : 'Smart Home cloud project'
+      byId('tuyaDeveloperTitle').textContent = options().projectType === '1' ? 'Custom cloud project' : 'Tuya Developer Cloud project'
       document.querySelectorAll('[data-smart-home-only]').forEach(field => { field.hidden = options().projectType !== '2' })
       const badgeNode = byId('tuyaAccountBadge')
       const connected = accountStatus.connected && accountStatus.matchesConfiguration
       badgeNode.textContent = connected ? 'Authorized' : 'Not connected'
       badgeNode.className = `tuya-badge ${connected ? 'tuya-badge-success' : 'tuya-badge-warning'}`
+    }
+
+    function renderStoredQrRecovery() {
+      const candidate = storedQrCandidate()
+      const notice = byId('tuyaStoredQrRecovery')
+      notice.hidden = !candidate
+      if (!candidate) return
+      byId('tuyaStoredQrRecoveryTitle').textContent = `Stored ${appLabel(candidate.appSchema)} QR authorization found`
+      byId('tuyaStoredQrRecoveryMessage').textContent = `${candidate.username ? `Account ${candidate.username} is` : 'This account is'} already authorized. Use it to replace the selected developer-project mode without generating or scanning another QR code.`
     }
 
     function renderAuthStatus() {
@@ -648,7 +694,9 @@
       const root = byId('tuyaHomePicker')
       root.replaceChildren()
       if (!overview.connected || !(overview.homes || []).length) {
-        const empty = element('div', 'tuya-empty', 'Connect and refresh the account to choose homes visually.')
+        const empty = element('div', 'tuya-empty', options().projectType === '3'
+          ? 'Connect and refresh the account to choose homes visually.'
+          : 'Visual home selection is available for QR connections; developer projects can use manual Home IDs below.')
         empty.style.gridColumn = '1 / -1'
         root.append(empty)
         return
@@ -749,7 +797,7 @@
       if (value.projectType === '3' && !value.userCode) throw new Error('Enter the User Code from the selected Tuya app.')
       if ((value.projectType === '1' || value.projectType === '2') && (!value.accessId || !value.accessKey)) throw new Error('Access ID and Access Secret are required.')
       if (value.projectType === '1' && !value.endpoint) throw new Error('A cloud endpoint is required for a Custom project.')
-      if (value.projectType === '2' && (!value.countryCode || !value.username || !value.password)) throw new Error('Country code, app username, and app password are required for a Smart Home project.')
+      if (value.projectType === '2' && (!value.countryCode || !value.username || !value.password)) throw new Error('Country code, app username, and app password are required for a Tuya Developer Cloud project.')
     }
 
     async function savePlatform(message = 'Configuration saved. Restart Homebridge to apply accessory changes.') {
@@ -795,6 +843,21 @@
         byId('tuyaCheckAccount').disabled = false
         renderAll()
       }
+    }
+
+    async function useStoredQrAccount() {
+      const candidate = storedQrCandidate()
+      if (!candidate) throw new Error('No unambiguous stored QR authorization is available.')
+      const value = options()
+      value.projectType = '3'
+      value.userCode = candidate.userCode
+      value.appSchema = candidate.appSchema
+      value.clientId = candidate.clientId
+      syncFormsFromConfig()
+      renderAll()
+      await savePlatform('Stored QR authorization selected. Restart Homebridge to apply accessory changes.')
+      await refreshAccount(false)
+      selectTab('dashboard')
     }
 
     async function startQrLogin() {
@@ -883,6 +946,7 @@
       renderHomes()
       renderDevices()
       renderMethod()
+      renderStoredQrRecovery()
       renderAuthStatus()
       renderHomePicker()
       renderPackageDetails()
@@ -903,6 +967,7 @@
       window.localStorage.setItem('tuya-ultimate-theme', event.target.value)
     })
     byId('tuyaDashboardAction').addEventListener('click', () => selectTab('account'))
+    byId('tuyaUseStoredQr').addEventListener('click', () => useStoredQrAccount().catch(error => homebridge.toast.error(errorMessage(error), 'Could not use stored QR authorization')))
     byId('tuyaRefresh').addEventListener('click', () => refreshAccount())
     byId('tuyaCheckAccount').addEventListener('click', () => refreshAccount())
     byId('tuyaStartQr').addEventListener('click', startQrLogin)
@@ -936,9 +1001,14 @@
       byId('tuyaTheme').value = selectedTheme
       byId('tuyaApp').dataset.theme = selectedTheme
       try {
-        const [configs, packageInfo] = await Promise.all([homebridge.getPluginConfig(), homebridge.request('/about')])
+        const [configs, packageInfo, storedAccountResponse] = await Promise.all([
+          homebridge.getPluginConfig(),
+          homebridge.request('/about'),
+          homebridge.request('/sharing/accounts'),
+        ])
         platform = configs[0] || platform
         about = packageInfo || {}
+        storedAccounts = Array.isArray(storedAccountResponse?.accounts) ? storedAccountResponse.accounts : []
         ensureDefaults()
         syncFormsFromConfig()
         renderAll()

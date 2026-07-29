@@ -83,12 +83,13 @@ describe('Homebridge custom UI server', () => {
     MockCredentialStore.values.clear();
   });
 
-  function handlers() {
+  function handlers(overrides: Record<string, unknown> = {}) {
     return createHandlers(storagePath, {
       CredentialStore: MockCredentialStore,
       Login: MockLogin,
       SharingAPI: MockSharingAPI,
       renderQr: async () => 'data:image/png;base64,test',
+      ...overrides,
     });
   }
 
@@ -138,6 +139,26 @@ describe('Homebridge custom UI server', () => {
       clientId: 'client-1',
       appSchema: 'tuyaSmart',
     })).resolves.toMatchObject({ connected: true, matchesConfiguration: false });
+  });
+
+  test('lists stored QR accounts without exposing their tokens', async () => {
+    const file = credentialFile(storagePath, 'user-1');
+    MockCredentialStore.values.set(file, credentials);
+
+    const result = await handlers({ listCredentialFiles: async () => [file] }).accounts();
+
+    expect(result).toEqual({
+      accounts: [{
+        userCode: 'user-1',
+        clientId: 'client-1',
+        appSchema: 'smartlife',
+        username: 'Test account',
+        endpoint: 'https://example.test',
+        expiresAt: 1_700_007_200_000,
+      }],
+    });
+    expect(JSON.stringify(result)).not.toContain('access-token');
+    expect(JSON.stringify(result)).not.toContain('refresh-token');
   });
 
   test('generates a QR image and stores completed authorization', async () => {

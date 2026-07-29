@@ -29,14 +29,14 @@
 
 Tuya devices are sold under thousands of brands and product names, but most of them expose a smaller set of standard Tuya categories and datapoints. Tuya Ultimate discovers those definitions, converts them into native HomeKit services, and keeps them updated through Tuya's cloud message stream.
 
-The QR connection removes the most frustrating part of a traditional Tuya setup: every Homebridge user no longer needs to create, link, authorize, and periodically renew a personal Tuya cloud project. Existing `Custom` and `Smart Home` project configurations remain supported for installations that already use them or need APIs outside the account-sharing surface.
+The QR connection removes the most frustrating part of a traditional Tuya setup: every Homebridge user no longer needs to create, link, authorize, and periodically renew a personal Tuya cloud project. Existing `Custom` and Tuya Developer Cloud (`Smart Home`) project configurations remain supported for installations that already use them or need APIs outside the account-sharing surface.
 
 ## Connection methods
 
 | Method | Project type | User provides | Device source | Recommended for |
 | --- | :---: | --- | --- | --- |
 | Smart Life / Tuya Smart QR login | `3` | App, User Code, QR approval | Homes shared with the app account | Most personal installations |
-| Smart Home cloud project | `2` | Access ID, Access Secret, country code, app login | Linked app account homes | Existing developer-project users |
+| Tuya Developer Cloud project (legacy Smart Home) | `2` | Access ID, Access Secret, country code, app login | Linked app account homes | Existing developer-project users |
 | Custom cloud project | `1` | Endpoint, Access ID, Access Secret | Authorized project assets | Industry/custom Tuya projects |
 
 > [!WARNING]
@@ -116,7 +116,7 @@ Both accounts then reach the same devices, while each integration owns a differe
 | IR air-conditioner climate telemetry | ✅ | Publishes the IR hub's ambient temperature and humidity with full AC modes and target-temperature control |
 | Home whitelist | ✅ | Include only selected Tuya Home IDs |
 | Device and schema overrides | ✅ | Rename datapoints, correct types/ranges, transform values, hide devices, or change categories |
-| Developer-project modes | ✅ | Existing Custom and Smart Home configurations remain available |
+| Developer-project modes | ✅ | Existing Custom and Tuya Developer Cloud configurations remain available |
 | Optional weather accessory | ✅ | Open-Meteo or authorized Tuya weather data |
 | Manual RTSP camera | ✅ | Add a camera stream independently of Tuya cloud discovery |
 | Product-specific IR, camera, and lock APIs in QR mode | 🟡 | Discovery mappings remain, but availability depends on account-sharing permissions and the product |
@@ -374,7 +374,7 @@ Home IDs are printed in the Homebridge log after a successful login.
 }
 ```
 
-### Smart Home developer project
+### Tuya Developer Cloud project (legacy Smart Home)
 
 Use `projectType: "2"` for the legacy linked-app flow. It requires:
 
@@ -558,7 +558,7 @@ Do not run this plugin and `homebridge-tuya-platform` simultaneously. Stop the o
 Before opening an issue, include:
 
 - Plugin, Homebridge, Node.js, and operating-system versions
-- Connection method: QR, Smart Home, or Custom
+- Connection method: QR, Tuya Developer Cloud, or Custom
 - App: Tuya Smart or Smart Life
 - Device manufacturer, model, product ID, and category
 - Relevant schema and status entries from the sanitized device list

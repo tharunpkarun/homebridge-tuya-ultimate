@@ -1,4 +1,6 @@
 const { HomebridgePluginUiServer, RequestError } = require('@homebridge/plugin-ui-utils');
+const fs = require('node:fs');
+const path = require('node:path');
 const QRCode = require('qrcode');
 
 const {
@@ -24,10 +26,28 @@ function required(value, label) {
   return value.trim();
 }
 
+async function findCredentialFiles(storagePath) {
+  const files = [];
+  for (const directory of [path.join(storagePath, 'persist'), storagePath]) {
+    try {
+      const entries = await fs.promises.readdir(directory, { withFileTypes: true });
+      files.push(...entries
+        .filter(entry => entry.isFile() && /^TuyaSharing\.[a-f0-9]{16}\.json$/.test(entry.name))
+        .map(entry => path.join(directory, entry.name)));
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        throw error;
+      }
+    }
+  }
+  return files;
+}
+
 function createHandlers(storagePath, dependencies = {}) {
   const CredentialStore = dependencies.CredentialStore || TuyaSharingCredentialStore;
   const Login = dependencies.Login || TuyaSharingLogin;
   const SharingAPI = dependencies.SharingAPI || TuyaSharingAPI;
+  const listCredentialFiles = dependencies.listCredentialFiles || findCredentialFiles;
   const renderQr = dependencies.renderQr || (content => QRCode.toDataURL(content, {
     errorCorrectionLevel: 'M',
     margin: 2,
@@ -82,6 +102,35 @@ function createHandlers(storagePath, dependencies = {}) {
         appSchema: credentials.app_schema,
         expiresAt: credentials.token_info.t + credentials.token_info.expire_time * 1000,
       } : { connected: false };
+    },
+
+    async accounts() {
+      const accounts = [];
+      const identities = new Set();
+      for (const file of await listCredentialFiles(storagePath)) {
+        try {
+          const credentials = await new CredentialStore(file).load();
+          if (!credentials?.user_code || !credentials?.client_id || !credentials?.app_schema) {
+            continue;
+          }
+          const identity = `${credentials.client_id}\0${credentials.user_code}\0${credentials.app_schema}`;
+          if (identities.has(identity)) {
+            continue;
+          }
+          identities.add(identity);
+          accounts.push({
+            userCode: credentials.user_code,
+            clientId: credentials.client_id,
+            appSchema: credentials.app_schema,
+            username: credentials.username,
+            endpoint: credentials.endpoint,
+            expiresAt: credentials.token_info.t + credentials.token_info.expire_time * 1000,
+          });
+        } catch (_error) {
+          // Ignore an unreadable legacy file so one stale entry cannot hide valid accounts.
+        }
+      }
+      return { accounts };
     },
 
     async start(payload = {}) {
@@ -194,6 +243,7 @@ class TuyaAccountUiServer extends HomebridgePluginUiServer {
     super();
     const handlers = createHandlers(this.homebridgeStoragePath);
     this.onRequest('/about', handlers.about);
+    this.onRequest('/sharing/accounts', handlers.accounts);
     this.onRequest('/sharing/status', handlers.status);
     this.onRequest('/sharing/qr/start', handlers.start);
     this.onRequest('/sharing/qr/poll', handlers.poll);
@@ -206,4 +256,4 @@ if (require.main === module) {
   new TuyaAccountUiServer();
 }
 
-module.exports = { createHandlers, credentialFile, TuyaAccountUiServer };
+module.exports = { createHandlers, credentialFile, findCredentialFiles, TuyaAccountUiServer };

@@ -30,7 +30,7 @@
                                 ]
                             },
                             {
-                                "title": "Smart Home",
+                                "title": "Tuya Developer Cloud (legacy Smart Home)",
                                 "enum": [
                                     "2"
                                 ]
