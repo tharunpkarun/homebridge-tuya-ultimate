@@ -1,7 +1,7 @@
 {
   "name": "homebridge-tuya-ultimate",
   "displayName": "Tuya Ultimate",
-  "version": "2.6.1",
+  "version": "2.6.2",
   "description": "Tuya Smart and Smart Life integration for Homebridge with QR account authorization and live cloud updates.",
   "license": "MIT",
   "author": {

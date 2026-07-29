@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## [2.6.2] - (2026.7.30)
+
+### Changed
+ - Present IR air conditioners as one Heater Cooler accessory plus their ambient humidity sensor.
+ - Remove unsupported fan-speed controls and cached standalone Fan and Dehumidifier services from IR air conditioners.
+
+### Fixed
+ - Report an IR air conditioner's current Heating, Cooling, Idle, or Inactive state from its selected mode, power, target temperature, and ambient temperature instead of permanently reporting Idle.
+
 ## [2.6.1] - (2026.7.27)
 
 ### Added
