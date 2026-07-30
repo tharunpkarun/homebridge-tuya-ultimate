@@ -124,4 +124,50 @@ describe('Tuya account-sharing device manager', () => {
     expect(device.online).toBe(true);
     expect(listener).toHaveBeenCalledWith(device, expect.objectContaining({ devId: 'device-1' }));
   });
+
+  test('omits IR remotes when the QR account cannot resolve their metadata and commands', async () => {
+    const get = jest.fn().mockImplementation(async (path: string) => {
+      if (path === '/v1.0/m/life/ha/home/devices') {
+        return success([
+          {
+            id: 'ir-hub', name: 'IR hub', owner_id: 'home-1', product_id: 'hub-product',
+            category: 'hwktwkq', status: [], sub: false,
+          },
+          {
+            id: 'ir-ac', name: 'Bedroom AC', owner_id: 'home-1', product_id: 'ac-product',
+            category: 'infrared_ac', status: [], sub: true,
+          },
+        ]);
+      }
+      if (path.startsWith('/v2.0/infrareds/')) {
+        return { success: false as const, code: 2008, msg: 'app param is invalid', result: undefined };
+      }
+      if (path.endsWith('/specifications')) {
+        return success({ functions: [], status: [] });
+      }
+      if (path.endsWith('/status')) {
+        return success({ productKey: 'product', dpStatusRelationDTOS: [] });
+      }
+      if (path.endsWith('/code/custom-type')) {
+        return success(false);
+      }
+      if (path.endsWith('/dp-report-types')) {
+        return success([]);
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+    const api = {
+      tokenInfo: { access_token: '', refresh_token: '', uid: 'user-1', expire: Number.MAX_SAFE_INTEGER },
+      get,
+      post: jest.fn(),
+      postWithQuery: jest.fn(),
+    } as unknown as TuyaSharingAPI;
+    const deviceManager = new TuyaSharingDeviceManager(api);
+    const devices = await deviceManager.updateDevices(['home-1']);
+
+    await deviceManager.updateInfraredRemotes(devices);
+
+    expect(devices.map(device => device.id)).toEqual(['ir-hub']);
+    expect(get).toHaveBeenCalledWith('/v2.0/infrareds/ir-hub/remotes');
+  });
 });

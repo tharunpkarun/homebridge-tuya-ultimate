@@ -67,6 +67,46 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
     return this.devices;
   }
 
+  async updateInfraredRemotes(allDevices: TuyaDevice[]) {
+    const infraredRemotes = allDevices.filter(device => device.category.startsWith('infrared_'));
+    if (infraredRemotes.length === 0) {
+      return;
+    }
+
+    await super.updateInfraredRemotes(allDevices);
+
+    // Tuya's account-sharing identity currently rejects the product-specific
+    // /v2.0/infrareds APIs. Do not register a thermostat whose required
+    // parent, mode table, state, and command endpoint are therefore missing:
+    // HomeKit would otherwise display a misleading 0 °C accessory that cannot
+    // send commands. If Tuya grants these endpoints later, fully resolved
+    // remotes will pass through unchanged.
+    const unresolved = infraredRemotes.filter(device => {
+      if (!device.parent_id || !device.remote_keys) {
+        return true;
+      }
+      if (device.category !== 'infrared_ac') {
+        return false;
+      }
+      return !['power', 'mode', 'temp'].every(code => device.status.some(item => item.code === code));
+    });
+    if (unresolved.length === 0) {
+      return;
+    }
+
+    for (const device of unresolved) {
+      const index = allDevices.indexOf(device);
+      if (index >= 0) {
+        allDevices.splice(index, 1);
+      }
+    }
+    this.log.warn(
+      'Tuya QR authorization does not expose IR remote metadata/control; skipped %d unresolved IR accessory(s). '
+      + 'Use Tuya Developer Cloud mode for IR hubs and remotes.',
+      unresolved.length,
+    );
+  }
+
   async updateDevice(deviceID: string): Promise<TuyaDevice | null> {
     const response = await this.api.get('/v1.0/m/life/ha/devices/detail', { devIds: deviceID });
     if (!response.success || !Array.isArray(response.result) || response.result.length === 0) {

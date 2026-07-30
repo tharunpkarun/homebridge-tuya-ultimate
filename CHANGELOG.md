@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## [2.6.4] - (2026.7.30)
+
+### Changed
+ - Clearly warn that Tuya's QR account API does not expose IR remote metadata or commands before switching away from an IR-capable Developer Cloud connection.
+
+### Fixed
+ - Omit unresolved QR-mode IR accessories instead of publishing a nonfunctional HomeKit thermostat showing `0 °C`.
+ - Show stored QR authorization alongside the active Developer Cloud configuration without implying that IR users should switch connection modes.
+
 ## [2.6.3] - (2026.7.30)
 
 ### Changed

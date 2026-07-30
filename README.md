@@ -113,13 +113,13 @@ Both accounts then reach the same devices, while each integration owns a differe
 | Automatic token renewal | ✅ | Refreshes and atomically persists account credentials |
 | Tap-to-Run scenes | ✅ | Enabled scenes appear as HomeKit switches |
 | Raw datapoint conversion | ✅ | Includes Tuya's official boolean, enum, range, light, timer, lock, vacuum, and meter conversion strategies |
-| IR air-conditioner climate telemetry | ✅ | Publishes the IR hub's ambient temperature and humidity with full AC modes and target-temperature control |
+| IR air-conditioner climate telemetry | 🟡 | Full climate control is available through Tuya Developer Cloud; Tuya's QR API currently rejects the required IR endpoints |
 | Home whitelist | ✅ | Include only selected Tuya Home IDs |
 | Device and schema overrides | ✅ | Rename datapoints, correct types/ranges, transform values, hide devices, or change categories |
 | Developer-project modes | ✅ | Existing Custom and Tuya Developer Cloud configurations remain available |
 | Optional weather accessory | ✅ | Open-Meteo or authorized Tuya weather data |
 | Manual RTSP camera | ✅ | Add a camera stream independently of Tuya cloud discovery |
-| Product-specific IR, camera, and lock APIs in QR mode | 🟡 | Discovery mappings remain, but availability depends on account-sharing permissions and the product |
+| Product-specific camera and lock APIs in QR mode | 🟡 | Availability depends on account-sharing permissions and the product |
 | Historical energy/statistics import | ➖ | This plugin exposes current device state; it does not import Tuya app history |
 | Local Tuya LAN control | ➖ | Commands and live updates require Tuya Cloud |
 | Zigbee gateway replacement | ➖ | Zigbee child devices remain paired to their Tuya gateway |
@@ -251,9 +251,9 @@ Tuya camera discovery can expose motion, doorbell, and product-dependent stream 
 
 ### IR control
 
-The inherited accessory mappings cover Tuya IR hubs, learned remotes, generic remotes, and air conditioners. IR air conditioners appear in Apple Home as climate accessories with power, supported operating modes, target temperature, and fan-speed controls. When the physical IR hub reports `temp_current` or `humidity_current`, those live ambient readings are attached to the same HomeKit AC accessory instead of displaying placeholder zero values.
+The inherited accessory mappings cover Tuya IR hubs, learned remotes, generic remotes, and air conditioners. Through Tuya Developer Cloud, IR air conditioners appear in Apple Home as climate accessories with power, supported operating modes, and target temperature. When the physical IR hub reports `temp_current` or `humidity_current`, those live ambient readings are attached to the same HomeKit AC accessory instead of displaying placeholder zero values.
 
-The plugin resolves each virtual IR remote against its physical hub before applying `deviceOverrides`. You can therefore hide the physical hub from Apple Home while retaining the remote's parent identity, mode table, current state, sensor readings, and command endpoint. These handlers use product-specific IR cloud endpoints; a device appearing in the Tuya app does not guarantee that every endpoint is granted to the QR account-sharing identity.
+The plugin resolves each virtual IR remote against its physical hub before applying `deviceOverrides`. You can therefore hide the physical hub from Apple Home while retaining the remote's parent identity, mode table, current state, sensor readings, and command endpoint. These handlers use product-specific IR cloud endpoints that Tuya currently rejects for the QR account-sharing identity. Keep Tuya Developer Cloud mode for IR hubs and remotes. QR mode omits unresolved IR accessories instead of publishing a nonfunctional thermostat with a `0 °C` placeholder.
 
 ### Device overrides
 
@@ -513,7 +513,7 @@ Tap-to-Run scenes are momentary actions represented through a HomeKit switch. Th
 
 ### IR, camera, or lock features are missing in QR mode
 
-The device-sharing API can discover the base device while denying a separate product-specific API. Confirm the feature works in the Tuya app, review the log for the rejected endpoint, and test the developer-project connection if that service is essential.
+Tuya's QR device-sharing API currently rejects the product-specific IR metadata and command endpoints. Use Tuya Developer Cloud mode for IR hubs, AC thermostats, and remotes. Camera and lock capabilities remain product-dependent; confirm the feature works in the Tuya app and review the log for any rejected endpoint.
 
 ### Developer-project login returns `1106` or `2406`
 
