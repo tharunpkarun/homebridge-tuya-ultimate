@@ -11,7 +11,10 @@ const TEMPERATURE_TOLERANCE = 0.5;
 
 export default class IRAirConditionerAccessory extends BaseAccessory {
 
+  private lastClimateMode?: number;
+
   configureServices() {
+    this.rememberClimateMode(this.getMode());
     this.removeUnusedModeServices();
     this.configureAirConditioner();
     this.configureAmbientHumidity();
@@ -37,8 +40,11 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
         return ([AC_MODE_COOL, AC_MODE_HEAT, AC_MODE_AUTO].includes(this.getMode()) && this.getPower() === POWER_ON) ? ACTIVE : INACTIVE;
       })
       .onSet(async value => {
-        if (value === ACTIVE && ![AC_MODE_COOL, AC_MODE_HEAT, AC_MODE_AUTO].includes(this.getMode())) {
-          this.setMode(AC_MODE_AUTO);
+        if (value === ACTIVE) {
+          const activationMode = this.getActivationMode();
+          if (activationMode !== this.getMode()) {
+            this.setMode(activationMode);
+          }
         }
         this.setPower((value === ACTIVE) ? POWER_ON : POWER_OFF);
       });
@@ -105,8 +111,71 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
 
   setMode(value) {
     this.getStatus('mode')!.value = value;
+    this.rememberClimateMode(value);
     this.updateCurrentState();
     this.debounceSendACCommands();
+  }
+
+  getSupportedClimateModes() {
+    const modes = this.device.remote_keys?.key_range
+      ?.map(item => item.mode)
+      .filter(mode => [AC_MODE_COOL, AC_MODE_HEAT, AC_MODE_AUTO].includes(mode)) || [];
+    return [...new Set(modes)];
+  }
+
+  isSupportedClimateMode(mode: number | undefined): mode is number {
+    return mode !== undefined && this.getSupportedClimateModes().includes(mode);
+  }
+
+  rememberClimateMode(mode: number | undefined) {
+    if (this.isSupportedClimateMode(mode)) {
+      this.lastClimateMode = mode;
+    }
+  }
+
+  homeKitToTuyaMode(value) {
+    const { AUTO, HEAT, COOL } = this.Characteristic.TargetHeaterCoolerState;
+    return {
+      [COOL.toString()]: AC_MODE_COOL,
+      [HEAT.toString()]: AC_MODE_HEAT,
+      [AUTO.toString()]: AC_MODE_AUTO,
+    }[value?.toString()];
+  }
+
+  tuyaToHomeKitMode(mode: number) {
+    const { AUTO, HEAT, COOL } = this.Characteristic.TargetHeaterCoolerState;
+    return {
+      [AC_MODE_COOL.toString()]: COOL,
+      [AC_MODE_HEAT.toString()]: HEAT,
+      [AC_MODE_AUTO.toString()]: AUTO,
+    }[mode.toString()];
+  }
+
+  getCachedTargetMode() {
+    const target = this.mainService().getCharacteristic(this.Characteristic.TargetHeaterCoolerState);
+    const mode = this.homeKitToTuyaMode(target.value);
+    return this.isSupportedClimateMode(mode) ? mode : undefined;
+  }
+
+  getActivationMode() {
+    const cachedTarget = this.getCachedTargetMode();
+    if (cachedTarget !== undefined) {
+      return cachedTarget;
+    }
+    if (this.isSupportedClimateMode(this.lastClimateMode)) {
+      return this.lastClimateMode;
+    }
+
+    const currentMode = this.getMode();
+    if (this.isSupportedClimateMode(currentMode)) {
+      return currentMode;
+    }
+
+    const supportedModes = this.getSupportedClimateModes();
+    return supportedModes.find(mode => mode === AC_MODE_COOL)
+      ?? supportedModes.find(mode => mode === AC_MODE_HEAT)
+      ?? supportedModes.find(mode => mode === AC_MODE_AUTO)
+      ?? AC_MODE_COOL;
   }
 
   getTemp() {
@@ -195,17 +264,19 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
     }
 
     this.mainService().getCharacteristic(this.Characteristic.TargetHeaterCoolerState)
-      .onGet(() => ({
-        [AC_MODE_COOL.toString()]: COOL,
-        [AC_MODE_HEAT.toString()]: HEAT,
-        [AC_MODE_AUTO.toString()]: AUTO,
-      }[this.getMode().toString()] || AUTO))
+      .onGet(() => {
+        const currentMode = this.getMode();
+        if (this.isSupportedClimateMode(currentMode)) {
+          this.rememberClimateMode(currentMode);
+          return this.tuyaToHomeKitMode(currentMode)!;
+        }
+        return this.tuyaToHomeKitMode(this.getActivationMode()) ?? COOL;
+      })
       .onSet(async value => {
-        this.setMode({
-          [COOL.toString()]: AC_MODE_COOL,
-          [HEAT.toString()]: AC_MODE_HEAT,
-          [AUTO.toString()]: AC_MODE_AUTO,
-        }[value.toString()]);
+        const mode = this.homeKitToTuyaMode(value);
+        if (this.isSupportedClimateMode(mode)) {
+          this.setMode(mode);
+        }
       })
       .setProps({ validValues });
   }

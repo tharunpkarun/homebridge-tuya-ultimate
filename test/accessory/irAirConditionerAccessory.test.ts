@@ -8,6 +8,12 @@ const CurrentHeaterCoolerState = {
   COOLING: 3,
 };
 
+const TargetHeaterCoolerState = {
+  AUTO: 0,
+  HEAT: 1,
+  COOL: 2,
+};
+
 const createHandler = (parent: any, remoteStatus: any[] = []) => {
   const handler = Object.create(IRAirConditionerAccessory.prototype) as any;
   handler.device = {
@@ -26,6 +32,7 @@ const createHandler = (parent: any, remoteStatus: any[] = []) => {
   };
   handler.Characteristic = {
     CurrentHeaterCoolerState,
+    TargetHeaterCoolerState,
     RotationSpeed: 'RotationSpeed',
   };
   handler.Service = {
@@ -81,6 +88,65 @@ describe('IRAirConditionerAccessory availability', () => {
 });
 
 describe('IRAirConditionerAccessory HomeKit presentation', () => {
+  test('uses HomeKit Cool when powering on with an invalid Tuya mode cache', () => {
+    const remoteStatus = [
+      { code: 'power', value: 0 },
+      { code: 'mode', value: 4 },
+      { code: 'temp', value: 24 },
+    ];
+    const handler = createHandler(undefined, remoteStatus) as any;
+    handler.device.remote_keys = {
+      key_range: [{ mode: 0 }, { mode: 1 }, { mode: 2 }],
+    };
+    handler.accessory = {
+      getService: jest.fn(() => ({
+        getCharacteristic: jest.fn(() => ({ value: TargetHeaterCoolerState.COOL })),
+      })),
+    };
+
+    expect(handler.getActivationMode()).toBe(0);
+  });
+
+  test('remembers the last supported climate mode instead of defaulting to Auto', () => {
+    const remoteStatus = [
+      { code: 'power', value: 0 },
+      { code: 'mode', value: 0 },
+      { code: 'temp', value: 24 },
+    ];
+    const handler = createHandler(undefined, remoteStatus) as any;
+    handler.device.remote_keys = {
+      key_range: [{ mode: 0 }, { mode: 1 }, { mode: 2 }],
+    };
+    handler.lastClimateMode = 0;
+    handler.accessory = {
+      getService: jest.fn(() => ({
+        getCharacteristic: jest.fn(() => ({ value: undefined })),
+      })),
+    };
+    remoteStatus.find(status => status.code === 'mode')!.value = 4;
+
+    expect(handler.getActivationMode()).toBe(0);
+  });
+
+  test('prefers Cool over Auto when no prior climate target is available', () => {
+    const remoteStatus = [
+      { code: 'power', value: 0 },
+      { code: 'mode', value: 4 },
+      { code: 'temp', value: 24 },
+    ];
+    const handler = createHandler(undefined, remoteStatus) as any;
+    handler.device.remote_keys = {
+      key_range: [{ mode: 2 }, { mode: 0 }],
+    };
+    handler.accessory = {
+      getService: jest.fn(() => ({
+        getCharacteristic: jest.fn(() => ({ value: undefined })),
+      })),
+    };
+
+    expect(handler.getActivationMode()).toBe(0);
+  });
+
   test('reports cooling, heating, idle, and inactive from power, mode, and temperatures', () => {
     const parent = {
       status: [{ code: 'temp_current', value: 266 }],
