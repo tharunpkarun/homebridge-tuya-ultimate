@@ -154,7 +154,10 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
   getCachedTargetMode() {
     const target = this.mainService().getCharacteristic(this.Characteristic.TargetHeaterCoolerState);
     const mode = this.homeKitToTuyaMode(target.value);
-    return this.isSupportedClimateMode(mode) ? mode : undefined;
+    // HAP initializes TargetHeaterCoolerState to AUTO before the first read.
+    // An explicit HomeKit selection is already captured by setMode(), so an
+    // otherwise uncorroborated cached AUTO must not become the power-on mode.
+    return this.isSupportedClimateMode(mode) && mode !== AC_MODE_AUTO ? mode : undefined;
   }
 
   getActivationMode() {

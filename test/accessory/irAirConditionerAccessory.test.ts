@@ -133,7 +133,7 @@ describe('IRAirConditionerAccessory HomeKit presentation', () => {
     expect(handler.getActivationMode()).toBe(0);
   });
 
-  test('prefers Cool over Auto when no prior climate target is available', () => {
+  test('does not mistake HomeKit default Auto for a prior climate target', () => {
     const remoteStatus = [
       { code: 'power', value: 0 },
       { code: 'mode', value: 4 },
@@ -145,11 +145,31 @@ describe('IRAirConditionerAccessory HomeKit presentation', () => {
     };
     handler.accessory = {
       getService: jest.fn(() => ({
-        getCharacteristic: jest.fn(() => ({ value: undefined })),
+        getCharacteristic: jest.fn(() => ({ value: TargetHeaterCoolerState.AUTO })),
       })),
     };
 
     expect(handler.getActivationMode()).toBe(0);
+  });
+
+  test('preserves Auto when it was explicitly selected before powering on', () => {
+    const remoteStatus = [
+      { code: 'power', value: 0 },
+      { code: 'mode', value: 4 },
+      { code: 'temp', value: 24 },
+    ];
+    const handler = createHandler(undefined, remoteStatus) as any;
+    handler.device.remote_keys = {
+      key_range: [{ mode: 0 }, { mode: 1 }, { mode: 2 }],
+    };
+    handler.lastClimateMode = 2;
+    handler.accessory = {
+      getService: jest.fn(() => ({
+        getCharacteristic: jest.fn(() => ({ value: TargetHeaterCoolerState.AUTO })),
+      })),
+    };
+
+    expect(handler.getActivationMode()).toBe(2);
   });
 
   test('reports cooling, heating, idle, and inactive from power, mode, and temperatures', () => {
