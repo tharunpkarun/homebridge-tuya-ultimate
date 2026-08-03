@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## [2.6.7] - (2026.8.3)
+
 ### Fixed
  - Prevent HomeKit's default `Auto` target value from changing an IR thermostat to Auto when an Apple Home automation only turns it on.
 
