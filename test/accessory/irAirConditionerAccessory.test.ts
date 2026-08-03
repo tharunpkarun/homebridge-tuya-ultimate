@@ -13,7 +13,10 @@ const createHandler = (parent: any, remoteStatus: any[] = []) => {
   handler.device = {
     id: 'virtual-ac',
     parent_id: 'physical-hub',
+    category: 'infrared_ac',
+    online: false,
     status: remoteStatus,
+    isIRRemoteControl: () => true,
   };
   handler.deviceManager = {
     getDevice: jest.fn((id: string) => id === 'physical-hub' ? parent : undefined),
@@ -55,6 +58,25 @@ describe('IRAirConditionerAccessory ambient sensors', () => {
 
     expect(handler.getAmbientTemperature()).toBe(25);
     expect(handler.getAmbientHumidity()).toBe(0);
+  });
+});
+
+describe('IRAirConditionerAccessory availability', () => {
+  test('uses the physical IR hub availability instead of the virtual child flag', () => {
+    const parent = { online: true };
+    const handler = createHandler(parent);
+
+    expect(handler.getOnlineStatus()).toBe(true);
+
+    parent.online = false;
+    expect(handler.getOnlineStatus()).toBe(false);
+  });
+
+  test('falls back to the child availability when its parent cannot be resolved', () => {
+    const handler = createHandler(undefined) as any;
+    handler.device.online = true;
+
+    expect(handler.getOnlineStatus()).toBe(true);
   });
 });
 

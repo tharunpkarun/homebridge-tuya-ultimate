@@ -39,12 +39,20 @@ export default class IRControlHubAccessory extends BaseAccessory {
     return this.platform.accessoryHandlers.filter(accessory => accessory.device.parent_id === this.device.id);
   }
 
-  async onDeviceStatusUpdate(status: TuyaDeviceStatus[]) {
-    super.onDeviceStatusUpdate(status);
-
-    // Trigger sub device update temperature & humidity from parent device.
+  async updateSubAccessories() {
     for (const subAccessory of this.getSubAccessories()) {
       await subAccessory.updateAllValues();
     }
+  }
+
+  async onDeviceInfoUpdate(info) {
+    await super.onDeviceInfoUpdate(info);
+    await this.updateSubAccessories();
+  }
+
+  async onDeviceStatusUpdate(status: TuyaDeviceStatus[]) {
+    await super.onDeviceStatusUpdate(status);
+    // Refresh parent-backed availability, temperature, and humidity.
+    await this.updateSubAccessories();
   }
 }

@@ -114,8 +114,19 @@ class BaseAccessory {
         service.addOptionalCharacteristic(this.Characteristic.StatusActive);
       }
       service.getCharacteristic(this.Characteristic.StatusActive)
-        .onGet(() => this.device.online);
+        .onGet(() => this.getOnlineStatus());
     }
+  }
+
+  getOnlineStatus() {
+    if (this.device.parent_id && this.device.isIRRemoteControl()) {
+      const parent = this.deviceManager.getDevice(this.device.parent_id);
+      if (parent) {
+        return parent.online === true;
+      }
+    }
+
+    return this.device.online === true;
   }
 
   async updateAllValues() {
