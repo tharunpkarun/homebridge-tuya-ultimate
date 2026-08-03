@@ -52,7 +52,7 @@ export default class IRControlHubAccessory extends BaseAccessory {
 
   async onDeviceStatusUpdate(status: TuyaDeviceStatus[]) {
     await super.onDeviceStatusUpdate(status);
-    // Refresh parent-backed availability, temperature, and humidity.
+    // Refresh temperature and humidity read from the physical hub.
     await this.updateSubAccessories();
   }
 }

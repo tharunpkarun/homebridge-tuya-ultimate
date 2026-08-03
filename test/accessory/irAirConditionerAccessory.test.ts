@@ -69,21 +69,26 @@ describe('IRAirConditionerAccessory ambient sensors', () => {
 });
 
 describe('IRAirConditionerAccessory availability', () => {
-  test('uses the physical IR hub availability instead of the virtual child flag', () => {
-    const parent = { online: true };
-    const handler = createHandler(parent);
+  test('removes cached StatusActive characteristics from virtual IR services', () => {
+    const handler = createHandler({ online: false }) as any;
+    const statusActive = { UUID: 'status-active' };
+    const heaterCooler = {
+      testCharacteristic: jest.fn(() => true),
+      getCharacteristic: jest.fn(() => statusActive),
+      removeCharacteristic: jest.fn(),
+    };
+    const humidity = {
+      testCharacteristic: jest.fn(() => true),
+      getCharacteristic: jest.fn(() => statusActive),
+      removeCharacteristic: jest.fn(),
+    };
+    handler.Characteristic.StatusActive = 'StatusActive';
+    handler.accessory = { services: [heaterCooler, humidity] };
 
-    expect(handler.getOnlineStatus()).toBe(true);
+    handler.configureStatusActive();
 
-    parent.online = false;
-    expect(handler.getOnlineStatus()).toBe(false);
-  });
-
-  test('falls back to the child availability when its parent cannot be resolved', () => {
-    const handler = createHandler(undefined) as any;
-    handler.device.online = true;
-
-    expect(handler.getOnlineStatus()).toBe(true);
+    expect(heaterCooler.removeCharacteristic).toHaveBeenCalledWith(statusActive);
+    expect(humidity.removeCharacteristic).toHaveBeenCalledWith(statusActive);
   });
 });
 

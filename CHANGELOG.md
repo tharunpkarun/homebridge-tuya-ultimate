@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+ - Remove the optional HomeKit `StatusActive` characteristic from virtual IR accessories because neither Tuya's virtual-child nor physical-hub online flag reliably represents IR command availability.
+ - Remove previously cached `StatusActive` characteristics during accessory setup so stale false values no longer leave responsive IR thermostats marked as not responding.
+
 ## [2.6.5] - (2026.8.3)
 
 ### Fixed

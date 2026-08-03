@@ -109,24 +109,22 @@ class BaseAccessory {
   }
 
   configureStatusActive() {
+    if (this.device.parent_id && this.device.isIRRemoteControl()) {
+      for (const service of this.accessory.services) {
+        if (service.testCharacteristic(this.Characteristic.StatusActive)) {
+          service.removeCharacteristic(service.getCharacteristic(this.Characteristic.StatusActive));
+        }
+      }
+      return;
+    }
+
     for (const service of this.accessory.services) {
       if (!service.testCharacteristic(this.Characteristic.StatusActive)) { // silence warning
         service.addOptionalCharacteristic(this.Characteristic.StatusActive);
       }
       service.getCharacteristic(this.Characteristic.StatusActive)
-        .onGet(() => this.getOnlineStatus());
+        .onGet(() => this.device.online === true);
     }
-  }
-
-  getOnlineStatus() {
-    if (this.device.parent_id && this.device.isIRRemoteControl()) {
-      const parent = this.deviceManager.getDevice(this.device.parent_id);
-      if (parent) {
-        return parent.online === true;
-      }
-    }
-
-    return this.device.online === true;
   }
 
   async updateAllValues() {
