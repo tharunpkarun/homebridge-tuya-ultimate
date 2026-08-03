@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [2.6.5] - (2026.8.3)
+
+### Fixed
+ - Derive virtual IR accessories' HomeKit availability from their physical IR hub instead of an unreliable virtual-child online flag.
+ - Refresh IR child availability and parent-backed sensor values immediately when the physical hub reports an online, offline, or status change.
+ - Preserve the HomeKit-selected Cool, Heat, or Auto mode when an IR thermostat is turned on, including from Apple Home automations.
+ - Remember the last valid climate mode and prefer supported Cool over Auto when no prior target can be recovered.
+
 ## [2.6.4] - (2026.7.30)
 
 ### Changed
