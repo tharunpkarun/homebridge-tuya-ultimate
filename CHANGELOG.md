@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## [2.7.1] - (2026.8.6)
+
+### Fixed
+ - Keep QR account authorization on the account-sharing login endpoint instead of reusing a configured Developer Cloud regional endpoint.
+
 ## [2.7.0] - (2026.8.6)
 
 ### Added
