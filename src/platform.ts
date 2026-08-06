@@ -281,24 +281,8 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       return;
     }
 
-    // override device category
     for (const device of devices) {
-      const deviceConfig = this.getDeviceConfig(device);
-      if (!deviceConfig || !deviceConfig.category) {
-        continue;
-      }
-      this.log.warn('Override %o category from %o to %o', device.name, device.category, deviceConfig.category);
-      device.category = deviceConfig.category;
-    }
-    // override device bridged
-    for (const device of devices) {
-      const deviceConfig = this.getDeviceConfig(device);
-      if (!deviceConfig || !deviceConfig.unbridged) {
-        continue;
-      }
-
-      this.log.warn('Unbridge %o category %o', device.name, device.category );
-      device.unbridged = deviceConfig.unbridged;
+      this.applyDeviceOverride(device);
     }
 
     this.log.info(`Got ${devices.length} device(s) and scene(s).`);
@@ -363,6 +347,32 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
     const globalConfig = this.options.deviceOverrides.find(config => config.id === 'global');
 
     return deviceConfig || productConfig || globalConfig;
+  }
+
+  private applyDeviceOverride(device: TuyaDevice) {
+    const deviceConfig = this.getDeviceConfig(device);
+    if (!deviceConfig) {
+      device.hidden = false;
+      device.unbridged = false;
+      return;
+    }
+
+    const hidden = deviceConfig.hidden === true || deviceConfig.category === 'hidden';
+    if (device.hidden !== hidden && hidden) {
+      this.log.info('Hide accessory %o.', device.name);
+    }
+    device.hidden = hidden;
+
+    if (deviceConfig.category && deviceConfig.category !== 'hidden' && device.category !== deviceConfig.category) {
+      this.log.warn('Override %o category from %o to %o', device.name, device.category, deviceConfig.category);
+      device.category = deviceConfig.category;
+    }
+
+    const unbridged = deviceConfig.unbridged === true;
+    if (device.unbridged !== unbridged && unbridged) {
+      this.log.warn('Unbridge %o category %o', device.name, device.category);
+    }
+    device.unbridged = unbridged;
   }
 
   getDeviceSchemaConfig(device: TuyaDevice, code: string) {
@@ -713,8 +723,8 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
   }
 
   addAccessory(device: TuyaDevice) {
-    if (device.category === 'hidden') {
-      this.log.info('Hide Accessory:', device.name);
+    this.applyDeviceOverride(device);
+    if (device.hidden || device.category === 'hidden') {
       return;
     }
 

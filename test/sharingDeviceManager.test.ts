@@ -281,6 +281,229 @@ describe('Tuya account-sharing device manager', () => {
     );
   });
 
+  test('exposes an IR AC whose sharing functions are embedded in the device mapping', async () => {
+    const infraredMapping = {
+      wind: {
+        code: 'wind', type: 'ENUM',
+        values: { min: 0, max: 3, scale: 0, step: 1, type: 'Integer' },
+      },
+      mode: {
+        code: 'mode', type: 'ENUM',
+        values: { min: 0, max: 4, scale: 0, step: 1, type: 'Integer' },
+      },
+      power: { code: 'power', type: 'BOOLEAN', values: {} },
+      temp: {
+        code: 'temp', type: 'ENUM',
+        values: { min: 16, max: 30, scale: 0, step: 1, type: 'Integer' },
+      },
+      F: {
+        code: 'F', type: 'ENUM',
+        values: { min: 0, max: 3, scale: 0, step: 1, type: 'Integer' },
+      },
+      M: {
+        code: 'M', type: 'ENUM',
+        values: { min: 0, max: 4, scale: 0, step: 1, type: 'Integer' },
+      },
+      PowerOff: { code: 'PowerOff', type: 'STRING', values: 'PowerOff' },
+      PowerOn: { code: 'PowerOn', type: 'STRING', values: 'PowerOn' },
+      T: {
+        code: 'T', type: 'ENUM',
+        values: { min: 16, max: 30, scale: 0, step: 1, type: 'Integer' },
+      },
+    };
+    const get = jest.fn().mockImplementation(async (path: string) => {
+      if (path === '/v1.0/m/life/ha/home/devices') {
+        return success([
+          {
+            id: 'ir-hub', name: 'IR Thermostat', owner_id: 'home-1',
+            product_id: 'aqlyorlybbtn6ox7', product_name: 'IR Thermostat',
+            category: 'hwktwkq', status: [], sub: false,
+          },
+          {
+            id: 'ir-ac', name: 'Bedroom AC', owner_id: 'home-1',
+            product_id: 'qzktzhehinzsz2je', product_name: 'Air Conditioning',
+            category: 'infrared_ac', status: [], sub: true, set_up: false,
+            parent: 'ir-hub', mapping: infraredMapping,
+          },
+        ]);
+      }
+      if (path.endsWith('/specifications')) {
+        return success({ functions: [], status: [] });
+      }
+      if (path.endsWith('/status')) {
+        return success({ productKey: 'product', dpStatusRelationDTOS: [] });
+      }
+      if (path.endsWith('/code/custom-type')) {
+        return success(false);
+      }
+      if (path.endsWith('/dp-report-types')) {
+        return success([]);
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+    const postWithQuery = jest.fn().mockResolvedValue(success(true));
+    const api = {
+      tokenInfo: { access_token: '', refresh_token: '', uid: 'user-1', expire: Number.MAX_SAFE_INTEGER },
+      get,
+      post: jest.fn(),
+      postWithQuery,
+    } as unknown as TuyaSharingAPI;
+    const deviceManager = new TuyaSharingDeviceManager(api);
+    const devices = await deviceManager.updateDevices(['home-1']);
+
+    await deviceManager.updateInfraredRemotes(devices);
+
+    expect(devices).toHaveLength(2);
+    const hub = devices.find(device => device.id === 'ir-hub')!;
+    const airConditioner = devices.find(device => device.id === 'ir-ac')!;
+    expect(hub.schema).toEqual([]);
+    expect(hub.status).toEqual([]);
+    expect(airConditioner).toMatchObject({
+      parent_id: 'ir-hub',
+      set_up: true,
+      infrared_ac_command_mode: 'device-sharing',
+    });
+    expect(airConditioner.schema.map(item => [item.code, item.mode])).toEqual(expect.arrayContaining([
+      ['F', 'wo'],
+      ['M', 'wo'],
+      ['PowerOff', 'wo'],
+      ['PowerOn', 'wo'],
+      ['T', 'wo'],
+      ['mode', 'ro'],
+      ['power', 'ro'],
+      ['temp', 'ro'],
+      ['wind', 'ro'],
+    ]));
+    expect(airConditioner.status).toEqual([
+      { code: 'mode', value: 0 },
+      { code: 'power', value: false },
+      { code: 'temp', value: 25 },
+      { code: 'wind', value: 0 },
+    ]);
+    expect(airConditioner.remote_keys?.key_range).not.toHaveLength(0);
+    expect(get).not.toHaveBeenCalledWith(expect.stringMatching(/^\/v2\.0\/infrareds\//));
+
+    await deviceManager.sendInfraredACCommands('ir-hub', 'ir-ac', 1, 1, 23, 2);
+    expect(postWithQuery).toHaveBeenLastCalledWith(
+      '/v1.1/m/thing/ir-ac/commands',
+      undefined,
+      { commands: [
+        { code: 'M', value: 1 },
+        { code: 'T', value: 23 },
+        { code: 'F', value: 2 },
+        { code: 'PowerOn', value: 'PowerOn' },
+      ] },
+    );
+  });
+
+  test('exposes static buttons from an inventory-mapped QR IR remote', async () => {
+    const get = jest.fn().mockImplementation(async (path: string) => {
+      if (path === '/v1.0/m/life/ha/home/devices') {
+        return success([
+          {
+            id: 'ir-hub', name: 'IR hub', owner_id: 'home-1', product_id: 'hub-product',
+            category: 'wnykq', status: [], sub: false,
+          },
+          {
+            id: 'ir-tv', name: 'Living room TV', owner_id: 'home-1', product_id: '000000dp6t',
+            category: 'infrared_tv', status: [], sub: true, set_up: false, parent: 'ir-hub',
+            mapping: JSON.stringify([
+              { code: 'Power', type: 'STRING', value: 'Power' },
+              { code: '0', type: 'STRING', value: 0 },
+              {
+                code: 'C', type: 'ENUM',
+                value: { min: 1, max: 999, scale: 0, step: 1, type: 'Integer' },
+              },
+            ]),
+          },
+        ]);
+      }
+      if (path.endsWith('/specifications')) {
+        return success({ functions: [], status: [] });
+      }
+      if (path.endsWith('/status')) {
+        return success({ productKey: 'product', dpStatusRelationDTOS: [] });
+      }
+      if (path.endsWith('/code/custom-type')) {
+        return success(false);
+      }
+      if (path.endsWith('/dp-report-types')) {
+        return success([]);
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+    const postWithQuery = jest.fn().mockResolvedValue(success(true));
+    const api = {
+      tokenInfo: { access_token: '', refresh_token: '', uid: 'user-1', expire: Number.MAX_SAFE_INTEGER },
+      get,
+      post: jest.fn(),
+      postWithQuery,
+    } as unknown as TuyaSharingAPI;
+    const deviceManager = new TuyaSharingDeviceManager(api);
+    const devices = await deviceManager.updateDevices(['home-1']);
+
+    await deviceManager.updateInfraredRemotes(devices);
+
+    const television = devices.find(device => device.id === 'ir-tv')!;
+    expect(television).toMatchObject({
+      parent_id: 'ir-hub',
+      set_up: true,
+      infrared_remote_command_mode: 'device-sharing',
+    });
+    expect(television.schema.map(item => item.code)).toEqual(['0', 'Power']);
+    expect(television.remote_keys?.key_list.map(item => item.key)).toEqual(['0', 'Power']);
+    expect(get).not.toHaveBeenCalledWith(expect.stringMatching(/^\/v2\.0\/infrareds\//));
+
+    await deviceManager.sendInfraredCommands('ir-hub', 'ir-tv', 999, 0, '0', 0);
+    expect(postWithQuery).toHaveBeenLastCalledWith(
+      '/v1.1/m/thing/ir-tv/commands',
+      undefined,
+      { commands: [{ code: '0', value: 0 }] },
+    );
+  });
+
+  test('uses explicitly directed function and status-range data embedded in an inventory device', async () => {
+    const get = jest.fn().mockImplementation(async (path: string) => {
+      if (path === '/v1.0/m/life/ha/home/devices') {
+        return success([{
+          id: 'embedded-switch', name: 'Embedded switch', owner_id: 'home-1', product_id: 'switch-product',
+          category: 'kg', status: { switch_1: false }, sub: false,
+          function: {
+            switch_1: { type: 'BOOLEAN', value: {} },
+          },
+          status_range: [{ code: 'switch_1', type: 'BOOL', value: {} }],
+        }]);
+      }
+      if (path.endsWith('/specifications')) {
+        return success({ functions: [], status: [] });
+      }
+      if (path.endsWith('/status')) {
+        return success({ productKey: 'switch-product', dpStatusRelationDTOS: [] });
+      }
+      if (path.endsWith('/code/custom-type')) {
+        return success(false);
+      }
+      if (path.endsWith('/dp-report-types')) {
+        return success([]);
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+    const api = {
+      tokenInfo: { access_token: '', refresh_token: '', uid: 'user-1', expire: Number.MAX_SAFE_INTEGER },
+      get,
+      post: jest.fn(),
+      postWithQuery: jest.fn(),
+    } as unknown as TuyaSharingAPI;
+    const deviceManager = new TuyaSharingDeviceManager(api);
+
+    const [device] = await deviceManager.updateDevices(['home-1']);
+
+    expect(device.schema).toEqual([{
+      code: 'switch_1', mode: 'rw', type: 'Boolean', property: {}, report_type: undefined,
+    }]);
+    expect(device.status).toEqual([{ code: 'switch_1', value: false }]);
+  });
+
   test.each([
     [
       'standard enum ranges',

@@ -9,7 +9,7 @@ Before configuring, you may need to:
 - Have basic programming skills in JavaScript (Only used in `onGet`/`onSet` handlers).
 - Understand the concept of device schema (also known as Data Type): [Tuya IoT Development Platform > Cloud Development > Standard Instruction Set > Data Type](https://developer.tuya.com/en/docs/iot/datatypedescription?id=K9i5ql2jo7j1k)
 - Read the documentation of your device product in [SUPPORTED_DEVICES.md](./SUPPORTED_DEVICES.md).
-- In QR mode, refresh the settings dashboard and inspect the bounded **Device inspector** view. Its copied override draft is intentionally minimal and is never applied automatically.
+- In QR mode, refresh the settings dashboard and open a device. Common accessory options can be saved there; the copied override draft and diagnostics remain bounded and sanitized.
 - When the inspector is unavailable, obtain device info JSON from `/path/to/persist/TuyaDeviceList.xxx.json` (the full path can be found from logs). This raw file can include private identifiers, locations, IP addresses, URLs, and values; never attach it without manual sanitization.
 - Locate any "incorrect schema" in your device info json, and convert it to the "correct schema".
 
@@ -19,7 +19,8 @@ Before configuring, you may need to:
 `options.deviceOverrides` is an **optional** array of device overriding config objects, which is used for converting "non-standard schema" to "standard schema", making the device compatible with this plugin. The structure of each element in the array is described as follows:
 
 - `id` - **required**: Device ID, Product ID, Scene ID, or `global`.
-- `category` - **optional**: Device category code. See [SUPPORTED_DEVICES.md](./SUPPORTED_DEVICES.md). Also you can use `hidden` to hide the device, product, or scene. **⚠️Overriding this property may lead to unexpected behaviors and exceptions, so please remove the accessory cache after making changes.**
+- `hidden` - **optional**: Hide the device, product, or scene from Apple Home while retaining Tuya discovery. Defaults to `false`. The legacy `category: "hidden"` form remains supported.
+- `category` - **optional**: Device category code. See [SUPPORTED_DEVICES.md](./SUPPORTED_DEVICES.md). **⚠️Overriding this property may lead to unexpected behaviors and exceptions, so restart Homebridge after making changes.**
 - `unbridged` - **optional**: Unbridge accessories. Defaults to `false`.
 - `adaptiveLighting` - **optional**: Adaptive Lighting. Defaults to `false`. Not all light device support this feature, please use it on demand.
 - `garageDoorUseContactSensorForState` - **optional**: For garage door controllers. When `true`, `CurrentDoorState` and `TargetDoorState` reads use `doorcontact_state` only, while set commands still use `switch_1`. Defaults to `false`.
@@ -158,7 +159,7 @@ This beta sends protocol 3.3 control frames only. It does not scan the LAN, nego
 
 ### Use sanitized diagnostics safely
 
-For connected QR accounts, the settings dashboard's **Device inspector** hides sensitive datapoint codes and non-scalar values before rendering. **Copy draft** creates only an inert `{ id, category }` (or `{ id }`) starting point; it never copies schema values or local-control settings and never modifies the saved configuration.
+For connected QR accounts, each device in the settings dashboard offers explicit-save controls for visibility, category, bridge exposure, and compatible accessory options. Saving an inherited product or global override creates an exact device override that preserves its advanced schema and local-control fields without displaying sensitive values. A Homebridge restart is required. The diagnostic inspector still hides sensitive datapoint codes and non-scalar values before rendering, and **Copy draft** remains an inert minimal starting point.
 
 For issue reports, prefer **Sanitized support bundle → Copy bundle** or **Download JSON**. That export pseudonymizes home/device references and removes real names and IDs, product IDs, configuration, credentials, locations, URLs, local keys, override drafts, enum ranges, and all datapoint values. The inspector itself intentionally shows local identity fields, so a screenshot is not equivalent to the support bundle. Developer-project modes do not currently populate this dashboard inventory.
 
@@ -178,7 +179,7 @@ For issue reports, prefer **Sanitized support bundle → Copy bundle** or **Down
 
 ### Hide device / scene
 
-Just the same way as changing category code.
+Use the dedicated `hidden` flag. The legacy `category: "hidden"` form is still accepted.
 
 ```js
 {
@@ -186,7 +187,7 @@ Just the same way as changing category code.
     // ...
     "deviceOverrides": [{
       "id": "{device_id_or_scene_id}",
-      "category": "hidden"
+      "hidden": true
     }]
   }
 }

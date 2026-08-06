@@ -7,7 +7,7 @@ jest.mock('@homebridge/plugin-ui-utils', () => ({
 
 // The Homebridge custom UI server is JavaScript because it runs as a separate process.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { createHandlers, credentialFile, sanitizeDevice } = require('../homebridge-ui/server.js');
+const { DEVICE_CATEGORY_OPTIONS, createHandlers, credentialFile, sanitizeDevice } = require('../homebridge-ui/server.js');
 import { DEFAULT_LOGIN_ENDPOINT, legacySharingCredentialFile } from '../src/core/TuyaSharingAuth';
 
 const credentials = {
@@ -159,6 +159,79 @@ describe('Homebridge custom UI server', () => {
     expect(sanitizeDevice({ id: 'https://private.example/device', category: 'dj' }, 'home-1')).toBeUndefined();
   });
 
+  test('returns only a safe, distinct UUID for exact override matching', () => {
+    expect(sanitizeDevice({ id: 'device-1', uuid: 'uuid-1', category: 'dj' }, 'home-1')).toMatchObject({
+      id: 'device-1',
+      uuid: 'uuid-1',
+    });
+    expect(sanitizeDevice({ id: 'device-1', uuid: 'device-1', category: 'dj' }, 'home-1')?.uuid).toBeUndefined();
+    expect(sanitizeDevice({ id: 'device-1', uuid: 'https://private.example/id', category: 'dj' }, 'home-1')?.uuid).toBeUndefined();
+  });
+
+  test('shows the safe IR command schema embedded in a virtual remote mapping', () => {
+    const device = sanitizeDevice({
+      id: 'ir-ac',
+      name: 'Bedroom AC',
+      category: 'infrared_ac',
+      status: [],
+      sub: true,
+      mapping: {
+        power: { code: 'power', type: 'BOOLEAN', values: {} },
+        mode: {
+          code: 'mode', type: 'ENUM',
+          values: { min: 0, max: 4, scale: 0, step: 1, type: 'Integer' },
+        },
+        M: {
+          code: 'M', type: 'ENUM',
+          values: { min: 0, max: 4, scale: 0, step: 1, type: 'Integer' },
+        },
+        PowerOn: { code: 'PowerOn', type: 'STRING', values: 'PowerOn' },
+        access_token: { code: 'access_token', type: 'STRING', values: 'secret' },
+      },
+    }, 'home-1');
+
+    expect(device).toMatchObject({
+      id: 'ir-ac',
+      subDevice: true,
+      schema: expect.arrayContaining([
+        { code: 'M', mode: 'wo', type: 'Enum', property: { min: 0, max: 4, scale: 0, step: 1 } },
+        { code: 'PowerOn', mode: 'wo', type: 'String', property: {} },
+        { code: 'mode', mode: 'ro', type: 'Enum', property: { min: 0, max: 4, scale: 0, step: 1 } },
+        { code: 'power', mode: 'ro', type: 'Boolean', property: {} },
+      ]),
+    });
+    expect(device.schema).toHaveLength(4);
+  });
+
+  test('shows safe embedded schemas and static QR IR remote buttons', () => {
+    const embedded = sanitizeDevice({
+      id: 'embedded-switch',
+      name: 'Embedded switch',
+      category: 'kg',
+      status: { switch_1: false },
+      function: { switch_1: { type: 'BOOLEAN', value: {} } },
+      status_range: [{ code: 'switch_1', type: 'BOOL', value: {} }],
+    }, 'home-1');
+    const remote = sanitizeDevice({
+      id: 'ir-tv',
+      name: 'Living room TV',
+      category: 'infrared_tv',
+      status: [],
+      mapping: JSON.stringify([
+        { code: 'Power', type: 'STRING', value: 'Power' },
+        { code: 'channel', type: 'ENUM', value: { min: 1, max: 999, step: 1, scale: 0 } },
+        { code: 'access_token', type: 'STRING', value: 'secret' },
+      ]),
+    }, 'home-1');
+
+    expect(embedded.schema).toEqual([
+      { code: 'switch_1', mode: 'rw', type: 'Boolean', property: {} },
+    ]);
+    expect(remote.schema).toEqual([
+      { code: 'Power', mode: 'wo', type: 'String', property: {} },
+    ]);
+  });
+
   test('migrates credentials written by the earlier UI storage layout', async () => {
     const legacyFile = legacySharingCredentialFile(storagePath, 'user-1');
     MockCredentialStore.values.set(legacyFile, credentials);
@@ -178,7 +251,12 @@ describe('Homebridge custom UI server', () => {
       packageName: 'homebridge-tuya-ultimate',
       version: expect.any(String),
       repository: 'https://github.com/tharunpkarun/homebridge-tuya-ultimate',
+      deviceCategoryOptions: expect.arrayContaining([
+        { code: 'dj', label: 'Light' },
+        { code: 'infrared_ac', label: 'IR air conditioner' },
+      ]),
     });
+    expect(DEVICE_CATEGORY_OPTIONS).not.toContainEqual(expect.objectContaining({ code: 'hidden' }));
   });
 
   test('reports whether stored credentials match the selected app identity', async () => {

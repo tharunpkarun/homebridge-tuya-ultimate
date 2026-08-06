@@ -155,4 +155,26 @@ describe('Tuya platform startup resilience', () => {
     expect(api.registerPlatformAccessories).not.toHaveBeenCalled();
     expect(api.unregisterPlatformAccessories).not.toHaveBeenCalled();
   });
+
+  test.each([
+    ['the dedicated hidden flag', { id: 'hidden-device', hidden: true }],
+    ['the legacy hidden category', { id: 'hidden-device', category: 'hidden' }],
+  ])('does not publish accessories hidden with %s', (_description, override) => {
+    const { platform, api } = createPlatform();
+    platform.options.deviceOverrides = [override];
+    const device = new TuyaDevice({
+      id: 'hidden-device',
+      name: 'Hidden device',
+      category: 'kg',
+      product_id: 'product-1',
+      schema: [],
+      status: [],
+    });
+
+    platform.addAccessory(device);
+
+    expect(device.hidden).toBe(true);
+    expect(device.category).toBe('kg');
+    expect(api.registerPlatformAccessories).not.toHaveBeenCalled();
+  });
 });

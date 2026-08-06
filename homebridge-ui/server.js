@@ -18,6 +18,13 @@ const packageJson = require('../package.json');
 const IDENTIFIER_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
 const DATAPOINT_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,95}$/;
 const SAFE_SCHEMA_TYPES = new Set(['Boolean', 'Integer', 'Enum', 'String', 'Json', 'Raw', 'Bitmap']);
+const IR_SHARING_FUNCTION_CODES = new Set(['F', 'M', 'PowerOff', 'PowerOn', 'T']);
+const IR_SHARING_STATUS_CODES = new Set(['mode', 'power', 'temp', 'wind']);
+const IR_SHARING_REMOTE_CATEGORIES = new Set([
+  'infrared_airpurifier', 'infrared_amplifier', 'infrared_box', 'infrared_fan',
+  'infrared_humidifier', 'infrared_light', 'infrared_projector', 'infrared_stb',
+  'infrared_tv', 'infrared_waterheater',
+]);
 const SENSITIVE_CODE_PATTERN = /(?:^|[_-])(?:access|account|address|auth|certificate|coordinate|credential|email|endpoint|geo|gps|host|ip|key|lat|latitude|lng|localkey|local_key|location|lon|longitude|mac|password|passwd|phone|pin|private|pwd|secret|session|ssid|token|uid|uri|url|user|username|wifi)(?:$|[_-])/i;
 const URL_PATTERN = /\b(?:data|file|ftp|https?|mqtts?|rtsp|wss?):\/\/\S+|\bwww\.\S+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(?:access[_ -]?key|auth|credential|local[_ -]?key|password|secret|token)\b\s*[:=]\s*\S+/gi;
@@ -33,6 +40,31 @@ const RUNTIME_ROUTES = new Set(['cloud', 'local', 'hybrid']);
 const RUNTIME_ATTEMPTED_ROUTES = new Set(['cloud', 'local']);
 const RUNTIME_OUTCOMES = new Set(['success', 'failure']);
 const RUNTIME_ERROR_KINDS = new Set(['configuration', 'connection', 'rejected', 'timeout', 'unknown']);
+const DEVICE_CATEGORY_OPTIONS = [
+  ['dj', 'Light'], ['dsd', 'Light'], ['xdd', 'Light'], ['fwd', 'Light'], ['dc', 'Light'], ['dd', 'Light'],
+  ['gyd', 'Light'], ['tyndj', 'Light'], ['sxd', 'Light'], ['tgq', 'Dimmer'], ['tgkg', 'Dimmer'],
+  ['dlq', 'Switch'], ['kg', 'Switch'], ['tdq', 'Switch'], ['qjdcz', 'Switch'], ['szjqr', 'Switch'],
+  ['cz', 'Outlet'], ['pc', 'Outlet'], ['wkcz', 'Outlet'], ['wxkg', 'Wireless switch'],
+  ['cjkg', 'Scene switch'], ['bzyd', 'White-noise light'], ['zndb', 'Electricity meter'],
+  ['kt', 'Air conditioner'], ['ktkzq', 'Air conditioner controller'], ['qn', 'Heater'], ['qn_old', 'Legacy heater'],
+  ['kj', 'Air purifier'], ['xxj', 'Diffuser'], ['ckmkzq', 'Garage door'], ['cl', 'Curtain'],
+  ['clkg', 'Curtain switch'], ['cwwsq', 'Pet feeder'], ['mc', 'Window controller'], ['wk', 'Thermostat'],
+  ['wkf', 'Thermostat'], ['mjj', 'Towel rack'], ['ggq', 'Irrigator'], ['sfkzq', 'Irrigator'],
+  ['jsq', 'Humidifier'], ['cs', 'Dehumidifier'], ['fs', 'Fan'], ['fsd', 'Fan'], ['fskg', 'Fan switch'],
+  ['yyj', 'Extraction hood'], ['sp', 'Camera'], ['ywbj', 'Smoke sensor'], ['mcs', 'Contact sensor'],
+  ['zd', 'Vibration sensor'], ['rqbj', 'Gas alarm'], ['jwbj', 'Methane alarm'], ['sj', 'Water detector'],
+  ['cobj', 'Carbon monoxide sensor'], ['cocgq', 'Carbon monoxide sensor'], ['co2bj', 'Carbon dioxide sensor'],
+  ['co2cgq', 'Carbon dioxide sensor'], ['wsdcg', 'Temperature and humidity sensor'], ['ldcg', 'Light sensor'],
+  ['pir', 'Motion sensor'], ['pm25', 'Air-quality sensor'], ['pm2.5', 'Air-quality sensor'],
+  ['pm25cgq', 'Air-quality sensor'], ['hjjcy', 'Air-quality sensor'], ['hps', 'Presence sensor'],
+  ['ms', 'Lock'], ['jtmspro', 'Lock'], ['mal', 'Security system'], ['sos', 'Emergency button'],
+  ['wxml', 'Doorbell'], ['qxj', 'Weather station'], ['wnykq', 'IR hub'], ['hwktwkq', 'IR thermostat hub'],
+  ['wsdykq', 'IR hub'], ['infrared_tv', 'IR television'], ['infrared_stb', 'IR set-top box'],
+  ['infrared_box', 'IR media box'], ['infrared_fan', 'IR fan'], ['infrared_light', 'IR light'],
+  ['infrared_amplifier', 'IR amplifier'], ['infrared_projector', 'IR projector'],
+  ['infrared_waterheater', 'IR water heater'], ['infrared_airpurifier', 'IR air purifier'],
+  ['infrared_humidifier', 'IR humidifier'], ['infrared_ac', 'IR air conditioner'],
+].map(([code, label]) => ({ code, label }));
 
 function credentialFile(storagePath, userCode) {
   return sharingCredentialFile(storagePath, userCode);
@@ -123,6 +155,16 @@ function sanitizeSchemaProperty(type, property) {
       .filter(value => value !== undefined);
     return range.length ? { range } : {};
   }
+  if (type === 'Enum') {
+    const result = {};
+    for (const key of ['min', 'max', 'scale', 'step']) {
+      const value = property?.[key];
+      if (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= Number.MAX_SAFE_INTEGER) {
+        result[key] = value;
+      }
+    }
+    return result;
+  }
   return {};
 }
 
@@ -151,6 +193,26 @@ function sanitizeDeviceSchema(rawDevice, specification) {
   if (Array.isArray(specification?.functions)) {
     specification.functions.forEach(entry => add(entry, 'write'));
   }
+  for (const [mappingCode, value] of specificationEntries(rawDevice?.status_range)) {
+    add(mappingSpecification(mappingCode, value), 'read');
+  }
+  for (const [mappingCode, value] of specificationEntries(rawDevice?.function)) {
+    add(mappingSpecification(mappingCode, value), 'write');
+  }
+  const isInfraredAC = rawDevice?.category === 'infrared_ac';
+  const isInfraredButtonRemote = IR_SHARING_REMOTE_CATEGORIES.has(rawDevice?.category);
+  if (isInfraredAC || isInfraredButtonRemote) {
+    for (const [mappingCode, value] of specificationEntries(rawDevice?.mapping)) {
+      const code = typeof value.code === 'string' ? value.code : mappingCode;
+      const entry = mappingSpecification(mappingCode, value);
+      if (!entry) continue;
+      if (isInfraredAC && IR_SHARING_FUNCTION_CODES.has(code)) add(entry, 'write');
+      if (isInfraredAC && IR_SHARING_STATUS_CODES.has(code)) add(entry, 'read');
+      if (isInfraredButtonRemote && isStaticInfraredMappingFunction(entry.type, value.values ?? value.value)) {
+        add(entry, 'write');
+      }
+    }
+  }
 
   const all = [...schemas.values()].sort((left, right) => left.code.localeCompare(right.code));
   return {
@@ -162,6 +224,65 @@ function sanitizeDeviceSchema(rawDevice, specification) {
     })),
     omittedCount: Math.max(0, all.length - MAX_DIAGNOSTIC_ITEMS),
   };
+}
+
+function specificationEntries(value) {
+  let source = value;
+  if (typeof source === 'string' && source.length <= 100_000) {
+    try {
+      source = JSON.parse(source);
+    } catch (_error) {
+      return [];
+    }
+  }
+  if (Array.isArray(source)) {
+    return source.slice(0, 256).flatMap((entry, index) => (
+      entry && typeof entry === 'object' && !Array.isArray(entry)
+        ? [[typeof entry.code === 'string' ? entry.code : String(index), entry]]
+        : []
+    ));
+  }
+  if (!source || typeof source !== 'object') return [];
+  return Object.entries(source).slice(0, 256)
+    .filter(([, entry]) => entry && typeof entry === 'object' && !Array.isArray(entry));
+}
+
+function mappingSpecification(mappingCode, value) {
+  const code = typeof value.code === 'string' ? value.code : mappingCode;
+  const type = normalizeMappingSchemaType(value.type);
+  if (!code || !type) return undefined;
+  const mappingValue = value.values ?? value.value;
+  return {
+    code,
+    type,
+    property: mappingValue && typeof mappingValue === 'object' && !Array.isArray(mappingValue)
+      ? mappingValue
+      : undefined,
+    values: typeof mappingValue === 'string'
+      ? mappingValue
+      : mappingValue !== undefined ? JSON.stringify(mappingValue) : undefined,
+  };
+}
+
+function isStaticInfraredMappingFunction(type, value) {
+  return type === 'String'
+    && (value === undefined || ['string', 'number', 'boolean'].includes(typeof value));
+}
+
+function normalizeMappingSchemaType(value) {
+  switch (String(value ?? '').toLowerCase()) {
+    case 'bool':
+    case 'boolean': return 'Boolean';
+    case 'value':
+    case 'integer': return 'Integer';
+    case 'number': return 'Integer';
+    case 'enum': return 'Enum';
+    case 'string': return 'String';
+    case 'json': return 'Json';
+    case 'raw': return 'Raw';
+    case 'bitmap': return 'Bitmap';
+    default: return undefined;
+  }
 }
 
 function rawStatuses(rawDevice) {
@@ -214,8 +335,10 @@ function sanitizeDevice(rawDevice, homeId, specification = {}) {
   const connectionStatus = rawDevice?.online === true ? 'online' : rawDevice?.online === false ? 'offline' : 'unknown';
   const setupStatus = rawDevice?.set_up === true ? 'ready' : rawDevice?.set_up === false ? 'incomplete' : 'unknown';
   const productId = safeIdentifier(rawDevice?.product_id ?? rawDevice?.productId);
+  const uuid = safeIdentifier(rawDevice?.uuid);
   return {
     id,
+    uuid: uuid && uuid !== id ? uuid : undefined,
     name: safeLabel(rawDevice?.name, 'Unnamed device'),
     category,
     productId,
@@ -443,6 +566,7 @@ function createHandlers(storagePath, dependencies = {}) {
         homebridge: packageJson.engines.homebridge,
         repository: packageJson.repository.url.replace(/^git\+/, '').replace(/\.git$/, ''),
         issues: packageJson.bugs.url,
+        deviceCategoryOptions: DEVICE_CATEGORY_OPTIONS,
       };
     },
 
@@ -634,6 +758,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  DEVICE_CATEGORY_OPTIONS,
   createHandlers,
   credentialFile,
   findCredentialFiles,

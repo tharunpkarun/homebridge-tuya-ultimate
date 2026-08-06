@@ -22,9 +22,23 @@ type RawSpecification = {
 type RawDevice = Record<string, any>;
 
 const SHARING_IR_AC_REQUIRED_FUNCTIONS = ['M', 'PowerOff', 'PowerOn', 'T'] as const;
+const SHARING_IR_AC_OPTIONAL_FUNCTIONS = ['F'] as const;
 const SHARING_IR_AC_STATUS_CODES = ['power', 'mode', 'temp', 'wind'] as const;
+const SHARING_IR_REMOTE_CATEGORIES = new Set([
+  'infrared_airpurifier',
+  'infrared_amplifier',
+  'infrared_box',
+  'infrared_fan',
+  'infrared_humidifier',
+  'infrared_light',
+  'infrared_projector',
+  'infrared_stb',
+  'infrared_tv',
+  'infrared_waterheater',
+]);
 const SHARING_IR_AC_DEFAULT_TEMPERATURE = 25;
 const SHARING_IR_AC_MAX_RANGE_SIZE = 100;
+const SHARING_IR_MAX_MAPPING_ENTRIES = 256;
 
 export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
   public readonly sharingMq: TuyaSharingMQ;
@@ -76,19 +90,21 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
     }
 
     const sharingAirConditioners = infraredRemotes.filter(isSharingInfraredAC);
-    const sharingSchemas = new Map(sharingAirConditioners.map(device => [device, device.schema]));
-    const sharingRemoteKeys = new Map(sharingAirConditioners.map(device => [device, device.remote_keys]));
+    const sharingGenericRemotes = infraredRemotes.filter(isSharingInfraredRemote);
+    const sharingRemotes = [...sharingAirConditioners, ...sharingGenericRemotes];
+    const sharingSchemas = new Map(sharingRemotes.map(device => [device, device.schema]));
+    const sharingRemoteKeys = new Map(sharingRemotes.map(device => [device, device.remote_keys]));
     if (this.hasProductApiFallback()) {
       // Prefer the richer product API when the user configured it. If it does
-      // not resolve an AC, the normal sharing functions remain a safe fallback.
+      // not resolve a remote, the normal sharing functions remain a safe fallback.
       for (const device of sharingAirConditioners) {
         device.infrared_ac_command_mode = undefined;
       }
       await super.updateInfraredRemotes(allDevices);
     } else {
-      const legacyRemotes = infraredRemotes.filter(device => !sharingAirConditioners.includes(device));
+      const legacyRemotes = infraredRemotes.filter(device => !sharingRemotes.includes(device));
       if (legacyRemotes.length > 0) {
-        const legacyDevices = allDevices.filter(device => !sharingAirConditioners.includes(device));
+        const legacyDevices = allDevices.filter(device => !sharingRemotes.includes(device));
         await super.updateInfraredRemotes(legacyDevices);
       }
     }
@@ -120,8 +136,38 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       );
     }
 
+    let configuredSharingRemotes = 0;
+    for (const device of sharingGenericRemotes) {
+      const initialRemoteKeys = sharingRemoteKeys.get(device);
+      const resolvedByProductApi = Boolean(
+        this.hasProductApiFallback()
+        && device.parent_id
+        && device.remote_keys !== initialRemoteKeys
+        && device.remote_keys?.key_list?.length,
+      );
+      if (resolvedByProductApi) {
+        device.infrared_remote_command_mode = undefined;
+        continue;
+      }
+      if (device.schema.length === 0) {
+        device.schema = sharingSchemas.get(device) ?? [];
+      }
+      device.remote_keys = initialRemoteKeys;
+      configureSharingInfraredRemote(device);
+      configuredSharingRemotes += 1;
+    }
+
+    if (configuredSharingRemotes > 0) {
+      this.log.info(
+        'Enabled %d QR-authorized IR button remote(s) through Tuya device-sharing commands.',
+        configuredSharingRemotes,
+      );
+    }
+
     const unresolved = infraredRemotes.filter(device => {
-      if ((!device.parent_id && device.infrared_ac_command_mode !== 'device-sharing') || !device.remote_keys) {
+      const usesSharingCommands = device.infrared_ac_command_mode === 'device-sharing'
+        || device.infrared_remote_command_mode === 'device-sharing';
+      if ((!device.parent_id && !usesSharingCommands) || !device.remote_keys) {
         return true;
       }
       if (device.category !== 'infrared_ac') {
@@ -194,6 +240,32 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
     );
     if (!response.success) {
       this.log.info('Send QR-authorized IR AC command failed. code = %s, msg = %s', response.code, response.msg);
+    }
+    return response;
+  }
+
+  async sendInfraredCommands(
+    infraredID: string,
+    remoteID: string,
+    categoryID: number,
+    remoteIndex: number,
+    key: string,
+    keyID: number,
+  ) {
+    const device = this.getDevice(remoteID);
+    if (device?.infrared_remote_command_mode !== 'device-sharing') {
+      return super.sendInfraredCommands(infraredID, remoteID, categoryID, remoteIndex, key, keyID);
+    }
+
+    const schema = device.schema.find(item => item.code === key);
+    const value = staticSharingInfraredFunctionValue(schema) ?? key;
+    const response = await this.sharingApi.postWithQuery(
+      `/v1.1/m/thing/${remoteID}/commands`,
+      undefined,
+      { commands: [{ code: key, value }] },
+    );
+    if (!response.success) {
+      this.log.info('Send QR-authorized IR command failed. code = %s, msg = %s', response.code, response.msg);
     }
     return response;
   }
@@ -362,6 +434,8 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
     const status = Array.isArray(raw.status)
       ? raw.status.filter(item => item?.code !== undefined).map(item => ({ code: String(item.code), value: item.value }))
       : Object.entries(raw.status ?? {}).map(([code, value]) => ({ code, value }));
+    const embeddedSpecification = embeddedDeviceSpecification(raw);
+    const mappedInfraredSpecification = sharingInfraredMappingSpecification(raw);
     const device = new TuyaDevice({
       id: String(raw.id),
       uuid: String(raw.uuid ?? raw.id),
@@ -373,7 +447,19 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       model: raw.model ? String(raw.model) : undefined,
       icon: String(raw.icon ?? ''),
       category: String(raw.category ?? ''),
-      schema: mergeSchema(specification.functions ?? [], specification.status ?? [], reportTypes),
+      schema: mergeSchema(
+        [
+          ...(specification.functions ?? []),
+          ...embeddedSpecification.functions,
+          ...mappedInfraredSpecification.functions,
+        ],
+        [
+          ...(specification.status ?? []),
+          ...embeddedSpecification.status,
+          ...mappedInfraredSpecification.status,
+        ],
+        reportTypes,
+      ),
       status,
       ip: String(raw.ip ?? ''),
       lat: String(raw.lat ?? ''),
@@ -389,12 +475,14 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       local_strategy: supportLocal ? localStrategy : {},
     });
     // Tuya marks virtual IR remotes as not set up even though their normal
-    // sharing specification exposes a complete, writable AC command surface.
+    // sharing specification can expose a complete writable command surface.
     // Include compatible remotes in MQTT subscriptions so owner/device reports
     // can refresh the optimistic one-way IR state when Tuya publishes them.
-    device.set_up = raw.set_up !== false || isSharingInfraredAC(device);
+    device.set_up = raw.set_up !== false || isSharingInfraredAC(device) || isSharingInfraredRemote(device);
     if (isSharingInfraredAC(device)) {
       configureSharingInfraredAC(device);
+    } else if (isSharingInfraredRemote(device)) {
+      configureSharingInfraredRemote(device);
     }
     return device;
   }
@@ -407,6 +495,131 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
         supportLocal: device.support_local === true,
       })),
     );
+  }
+}
+
+function embeddedDeviceSpecification(raw: RawDevice): {
+  functions: RawSpecification[];
+  status: RawSpecification[];
+} {
+  return {
+    functions: normalizeEmbeddedSpecifications(raw.function),
+    status: normalizeEmbeddedSpecifications(raw.status_range),
+  };
+}
+
+function normalizeEmbeddedSpecifications(value: unknown): RawSpecification[] {
+  return specificationEntries(value).flatMap(([mappingCode, entry]) => {
+    const code = typeof entry.code === 'string' ? entry.code : mappingCode;
+    const type = normalizeMappingSchemaType(entry.type);
+    if (!code || !type) {
+      return [];
+    }
+    return [{ code, type, values: serializeMappingValues(entry.values ?? entry.value, code, type) }];
+  });
+}
+
+function sharingInfraredMappingSpecification(raw: RawDevice): {
+  functions: RawSpecification[];
+  status: RawSpecification[];
+} {
+  const result = { functions: [] as RawSpecification[], status: [] as RawSpecification[] };
+  const isAirConditioner = raw.category === 'infrared_ac';
+  const isButtonRemote = SHARING_IR_REMOTE_CATEGORIES.has(raw.category);
+  if (!isAirConditioner && !isButtonRemote) {
+    return result;
+  }
+
+  const functionCodes = new Set<string>([
+    ...SHARING_IR_AC_REQUIRED_FUNCTIONS,
+    ...SHARING_IR_AC_OPTIONAL_FUNCTIONS,
+  ]);
+  const statusCodes = new Set<string>(SHARING_IR_AC_STATUS_CODES);
+  for (const [mappingCode, entry] of specificationEntries(raw.mapping)) {
+    const code = typeof entry.code === 'string' ? entry.code : mappingCode;
+    if (isAirConditioner && !functionCodes.has(code) && !statusCodes.has(code)) {
+      continue;
+    }
+    const type = normalizeMappingSchemaType(entry.type);
+    if (!type) {
+      continue;
+    }
+    const rawValues = entry.values ?? entry.value;
+    const values = serializeMappingValues(rawValues, code, type);
+    const specification = { code, type, values };
+    if (isAirConditioner && functionCodes.has(code)) {
+      result.functions.push(specification);
+    }
+    if (isAirConditioner && statusCodes.has(code)) {
+      result.status.push(specification);
+    }
+    if (isButtonRemote && isStaticInfraredMappingFunction(type, rawValues)) {
+      result.functions.push(specification);
+    }
+  }
+  return result;
+}
+
+function specificationEntries(value: unknown): Array<[string, RawDevice]> {
+  let source = value;
+  if (typeof source === 'string' && source.length <= 100_000) {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      return [];
+    }
+  }
+  if (Array.isArray(source)) {
+    return source.slice(0, SHARING_IR_MAX_MAPPING_ENTRIES).flatMap((entry, index) => (
+      entry && typeof entry === 'object' && !Array.isArray(entry)
+        ? [[typeof (entry as RawDevice).code === 'string' ? (entry as RawDevice).code : String(index), entry as RawDevice]]
+        : []
+    ));
+  }
+  if (!source || typeof source !== 'object') {
+    return [];
+  }
+  return Object.entries(source as Record<string, unknown>)
+    .slice(0, SHARING_IR_MAX_MAPPING_ENTRIES)
+    .flatMap(([code, entry]) => (
+      entry && typeof entry === 'object' && !Array.isArray(entry)
+        ? [[code, entry as RawDevice]]
+        : []
+    ));
+}
+
+function serializeMappingValues(value: unknown, code: string, type: string): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  const normalizedValue = value ?? (type === TuyaDeviceSchemaType.String ? code : {});
+  return JSON.stringify(normalizedValue);
+}
+
+function isStaticInfraredMappingFunction(type: string, value: unknown): boolean {
+  return type === TuyaDeviceSchemaType.String
+    && (value === undefined || ['string', 'number', 'boolean'].includes(typeof value));
+}
+
+function normalizeMappingSchemaType(value: unknown): string | undefined {
+  switch (String(value ?? '').toLowerCase()) {
+    case 'bool':
+    case 'boolean':
+      return TuyaDeviceSchemaType.Boolean;
+    case 'value':
+    case 'integer':
+    case 'number':
+      return TuyaDeviceSchemaType.Integer;
+    case 'enum':
+      return TuyaDeviceSchemaType.Enum;
+    case 'string':
+      return TuyaDeviceSchemaType.String;
+    case 'json':
+      return TuyaDeviceSchemaType.Json;
+    case 'raw':
+      return TuyaDeviceSchemaType.Raw;
+    default:
+      return undefined;
   }
 }
 
@@ -428,6 +641,14 @@ function isSharingInfraredAC(device: TuyaDevice): boolean {
     }
     return hasNumericProperty(schema);
   });
+}
+
+function isSharingInfraredRemote(device: TuyaDevice): boolean {
+  return SHARING_IR_REMOTE_CATEGORIES.has(device.category)
+    && device.schema.some(schema => (
+      isWritableSchema(schema.mode)
+      && staticSharingInfraredFunctionValue(schema) !== undefined
+    ));
 }
 
 function configureSharingInfraredAC(device: TuyaDevice) {
@@ -466,6 +687,29 @@ function configureSharingInfraredAC(device: TuyaDevice) {
   }
   device.infrared_ac_command_mode = 'device-sharing';
   device.infrared_ac_product_api_resolved = undefined;
+}
+
+function configureSharingInfraredRemote(device: TuyaDevice) {
+  const functions = device.schema.filter(schema => (
+    isWritableSchema(schema.mode)
+    && staticSharingInfraredFunctionValue(schema) !== undefined
+  ));
+  device.remote_keys = {
+    category_id: 999,
+    org_category_id: 999,
+    brand_id: 0,
+    remote_index: 0,
+    single_air: false,
+    duplicate_power: false,
+    key_list: functions.map((schema, index) => ({
+      key: schema.code,
+      key_id: index,
+      key_name: schema.code,
+      standard_key: true,
+    })),
+    key_range: [],
+  };
+  device.infrared_remote_command_mode = 'device-sharing';
 }
 
 function hasUsableInfraredACKeyRange(device: TuyaDevice): boolean {
@@ -516,6 +760,16 @@ function hasWritableNumericSchema(device: TuyaDevice, code: string): boolean {
 function sharingStringFunctionValue(device: TuyaDevice, code: 'PowerOn' | 'PowerOff'): string {
   const property = device.schema.find(item => item.code === code)?.property;
   return typeof property === 'string' ? property : code;
+}
+
+function staticSharingInfraredFunctionValue(schema: TuyaDeviceSchema | undefined): TuyaDeviceStatus['value'] | undefined {
+  if (!schema || String(schema.type).toLowerCase() !== 'string') {
+    return undefined;
+  }
+  if (['string', 'number', 'boolean'].includes(typeof schema.property)) {
+    return schema.property as string | number | boolean;
+  }
+  return undefined;
 }
 
 function isWritableSchema(mode: TuyaDeviceSchemaMode): boolean {

@@ -223,9 +223,17 @@
                                     "description": "Device ID or Product ID or `global`",
                                     "type": "string"
                                 },
+                                "hidden": {
+                                    "title": "Hide Accessory",
+                                    "description": "Do not publish this device or scene to Apple Home. Legacy category `hidden` remains supported.",
+                                    "type": "boolean",
+                                    "condition": {
+                                        "functionBody": "return (model.options && model.options.deviceOverrides);"
+                                    }
+                                },
                                 "category": {
                                     "title": "Category",
-                                    "description": "Category Code or `hidden`",
+                                    "description": "Optional Tuya category override. Use Hide Accessory instead of the legacy `hidden` category.",
                                     "type": "string",
                                     "condition": {
                                         "functionBody": "return (model.options && model.options.deviceOverrides);"
@@ -234,6 +242,14 @@
                                 "unbridged": {
                                     "title": "Unbridge",
                                     "description": "Would you like to make this device be an external device?",
+                                    "type": "boolean",
+                                    "condition": {
+                                        "functionBody": "return (model.options && model.options.deviceOverrides);"
+                                    }
+                                },
+                                "adaptiveLighting": {
+                                    "title": "Adaptive Lighting",
+                                    "description": "Enable HomeKit Adaptive Lighting for a compatible light with brightness and color-temperature datapoints.",
                                     "type": "boolean",
                                     "condition": {
                                         "functionBody": "return (model.options && model.options.deviceOverrides);"
@@ -665,10 +681,16 @@
                                     "key": "options.deviceOverrides[].id"
                                 },
                                 {
+                                    "key": "options.deviceOverrides[].hidden"
+                                },
+                                {
                                     "key": "options.deviceOverrides[].category"
                                 },
                                 {
                                     "key": "options.deviceOverrides[].unbridged"
+                                },
+                                {
+                                    "key": "options.deviceOverrides[].adaptiveLighting"
                                 },
                                 {
                                     "key": "options.deviceOverrides[].garageDoorUseContactSensorForState"

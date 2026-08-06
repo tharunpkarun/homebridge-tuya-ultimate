@@ -4,9 +4,12 @@
 
 ### Added
  - Expose compatible QR-authorized `infrared_ac` virtual remotes as HomeKit thermostats through Tuya's normal device-sharing functions (`PowerOn`, `PowerOff`, `M`, `T`, and `F`) without requiring the blocked product-specific IR APIs.
+ - Add per-device Config UI accessory options for visibility, category, bridged/external exposure, and compatible light, garage, and IR AC behavior, with explicit saves and restart guidance.
 
 ### Fixed
  - Build safe mode, temperature, fan, and optimistic one-way status metadata for QR IR air conditioners while preserving the richer Developer Cloud IR path when configured.
+ - Recover QR virtual IR command schemas embedded in Tuya's device-inventory `mapping` field when the separate specifications endpoint returns no schema or status data, including compatible air conditioners and static buttons on known IR remote categories.
+ - Show an initial Config UI loader while stored authorization, homes, and devices are being discovered instead of briefly presenting a false disconnected state.
 
 ## [2.7.2] - (2026.8.6)
 

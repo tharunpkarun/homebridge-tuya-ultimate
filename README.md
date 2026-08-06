@@ -117,7 +117,7 @@ Both accounts then reach the same devices, while each integration owns a differe
 | Home whitelist | ✅ | Include only selected Tuya Home IDs |
 | Device and schema overrides | ✅ | Rename datapoints, correct types/ranges, transform values, hide devices, or change categories |
 | Conservative capability detection | 🟡 | Optional fallback for otherwise unsupported categories that already expose recognized standard datapoints |
-| Device inspector and support export | ✅ | QR dashboard provides bounded diagnostics, inert override drafts, and a separately pseudonymized support bundle |
+| Per-device settings and support export | ✅ | QR dashboard provides explicit-save accessory options, bounded diagnostics, inert drafts, and a separately pseudonymized support bundle |
 | Developer-project modes | ✅ | Existing Custom and Tuya Developer Cloud configurations remain available |
 | Developer Cloud product fallback in QR mode | 🟡 | Optional secondary credentials route IR, lock, and camera product endpoints only |
 | Optional weather accessory | ✅ | Open-Meteo or authorized Tuya weather data |
@@ -277,9 +277,9 @@ The plugin resolves each virtual IR remote against its physical hub before apply
 
 When Developer Cloud product endpoints are available, changes made to the virtual IR air conditioner in Smart Life or Tuya Smart are reconciled when Apple Home reads its climate characteristics and after relevant Tuya cloud reports. Status reads are coalesced and return cached state after a short wait if Tuya is slow; opening the climate accessory also starts a short, bounded polling window, while report-triggered failures retry with backoff for up to one minute. A status read never transmits IR, so it does not make the AC beep. QR-only sharing remotes instead keep optimistic state unless Tuya publishes a matching report. Neither path can detect changes made directly on the physical AC or with another one-way remote.
 
-Compatible QR-authorized IR air conditioners can use Tuya's normal device-sharing functions when their specification exposes `PowerOn`, `PowerOff`, mode (`M`), temperature (`T`), and optionally fan (`F`). The plugin builds the HomeKit mode and temperature ranges from that specification and sends commands through the same QR connection. Because IR is one-way and this QR surface can begin with an empty cloud shadow, the initial state is conservatively Off, Cool, 25 °C, and fan Auto until HomeKit sends a command or Tuya publishes a matching report.
+Compatible QR-authorized IR air conditioners can use Tuya's normal device-sharing functions when their specification or inventory mapping exposes `PowerOn`, `PowerOff`, mode (`M`), temperature (`T`), and optionally fan (`F`). Some IR thermostat hubs expose an empty schema themselves while their virtual `infrared_ac` child carries these commands in the inventory mapping; the plugin recovers that child command surface automatically. It builds the HomeKit mode and temperature ranges from those definitions and sends commands through the same QR connection. Static mapped buttons on Tuya's known virtual TV, set-top box, fan, light, amplifier, projector, water-heater, air-purifier, and humidifier remotes use the same fallback. Dynamic commands that require a user-supplied value are not guessed or exposed as buttons. Because IR is one-way and this QR surface can begin with an empty cloud shadow, the initial AC state is conservatively Off, Cool, 25 °C, and fan Auto until HomeKit sends a command or Tuya publishes a matching report.
 
-Other QR IR remotes are omitted when their normal sharing schema is insufficient, rather than publishing a nonfunctional accessory. Advanced QR installations can configure `developerCloudFallback` with a separately authorized Tuya Developer Cloud project. The richer product endpoints remain preferred when that fallback resolves an IR remote, including its exact key table, remembered state, and physical-hub sensor readings. The secondary manager also covers lock operations and camera RTSP allocation; it is not a fallback for general cloud availability.
+QR IR remotes without a safe static sharing command surface are omitted rather than published as nonfunctional accessories. Advanced QR installations can configure `developerCloudFallback` with a separately authorized Tuya Developer Cloud project. The richer product endpoints remain preferred when that fallback resolves an IR remote, including its exact key table, remembered state, and physical-hub sensor readings. The secondary manager also covers lock operations and camera RTSP allocation; it is not a fallback for general cloud availability.
 
 ### Conservative capability detection
 
@@ -289,7 +289,9 @@ This option does not infer vendor-specific meanings, rewrite unknown datapoints,
 
 ### Device inspector and sanitized support bundle
 
-After refreshing a connected QR account in the settings dashboard, **Device inspector** shows a read-only, bounded view of device identity, topology, connection state, schema constraints, and safe scalar status diagnostics. Sensitive datapoint codes are omitted; Raw, String, and JSON values are hidden; and no raw Tuya device object crosses the UI boundary. **Copy draft** produces only an inert, minimal `deviceOverrides` identity/category entry. It is never applied automatically and contains no schema values or local-control secret.
+After refreshing a connected QR account in the settings dashboard, each device has quick accessory controls for visibility in Apple Home, category override, bridged/external exposure, and compatible features such as Adaptive Lighting, garage contact state, or IR AC power-on mode. Changes are saved only by that device's **Save accessory options** button and require a Homebridge restart. Hidden accessories remain visible in this dashboard and can be found with the **Hidden accessories** filter. Saving an inherited product/global configuration snapshots it into an exact device override while preserving advanced fields without rendering their secrets.
+
+The same expandable area shows a bounded diagnostic view of device identity, topology, connection state, schema constraints, and safe scalar status. Sensitive datapoint codes are omitted; Raw, String, and JSON values are hidden; and no raw Tuya device object crosses the UI boundary. **Copy draft** still produces only an inert, minimal `deviceOverrides` identity/category entry.
 
 The separate **Sanitized support bundle** uses stable `home-001` and `device-001` references rather than actual home/device/product IDs or names. It excludes configuration, credentials, endpoints, URLs, coordinates, local keys, override drafts, enum lists, and all datapoint values. Use **Copy bundle** or **Download JSON** after a connected QR refresh. Developer-project modes do not currently populate this dashboard inventory. Review any file before sharing it; screenshots of the inspector itself can still contain the identity fields displayed for local diagnosis.
 
@@ -564,7 +566,7 @@ Homebridge and Home Assistant likely authorized the same app account using the s
 
 ### A device appears as unsupported
 
-1. In QR mode, refresh the settings dashboard and open **Device inspector**.
+1. In QR mode, refresh the settings dashboard and expand the device under **Devices**.
 2. Inspect the device category, product, schema codes, and bounded status diagnostics.
 3. Compare the category with [Supported Devices](SUPPORTED_DEVICES.md).
 4. Confirm the required standard datapoints exist.

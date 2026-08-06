@@ -6,6 +6,71 @@ import { JSDOM } from 'jsdom';
 type UiEventHandler = (event?: { data?: unknown }) => unknown;
 
 describe('Homebridge custom UI', () => {
+  test('keeps account actions hidden behind a loader until initial authorization discovery finishes', async () => {
+    const listeners = new Map<string, UiEventHandler[]>();
+    let resolveStatus!: (value: { connected: boolean }) => void;
+    const status = new Promise<{ connected: boolean }>(resolve => { resolveStatus = resolve; });
+    const request = jest.fn(async (route: string) => {
+      if (route === '/about') return {};
+      if (route === '/sharing/accounts') return { accounts: [] };
+      if (route === '/sharing/status') return status;
+      throw new Error(`Unexpected UI request: ${route}`);
+    });
+    const html = fs.readFileSync(path.join(__dirname, '..', 'homebridge-ui', 'public', 'index.html'), 'utf8');
+    const dom = new JSDOM(html, {
+      beforeParse(window) {
+        window.HTMLElement.prototype.scrollIntoView = jest.fn();
+        Object.defineProperty(window, 'homebridge', {
+          configurable: true,
+          value: {
+            addEventListener(name: string, listener: UiEventHandler) {
+              listeners.set(name, [...(listeners.get(name) || []), listener]);
+            },
+            fixScrollHeight: jest.fn(),
+            getPluginConfig: jest.fn(async () => [{
+              platform: 'TuyaPlatform',
+              name: 'Tuya',
+              options: { projectType: '3', appSchema: 'smartlife', userCode: 'user-1' },
+            }]),
+            hideSchemaForm: jest.fn(),
+            request,
+            savePluginConfig: jest.fn(),
+            showSchemaForm: jest.fn(),
+            toast: { error: jest.fn(), info: jest.fn(), success: jest.fn() },
+            updatePluginConfig: jest.fn(),
+          },
+        });
+      },
+      runScripts: 'dangerously',
+      url: 'http://127.0.0.1/plugin-config',
+    });
+
+    const document = dom.window.document;
+    const loader = document.getElementById('tuyaInitialLoader') as HTMLElement;
+    const content = document.getElementById('tuyaContent') as HTMLElement;
+    expect(loader.hidden).toBe(false);
+    expect(content.getAttribute('aria-hidden')).toBe('true');
+    expect(content.hasAttribute('inert')).toBe(true);
+    expect(document.getElementById('tuyaApp')?.getAttribute('aria-busy')).toBe('true');
+
+    const ready = Promise.all((listeners.get('ready') || []).map(listener => listener()));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(request).toHaveBeenCalledWith('/sharing/status', expect.any(Object));
+    expect(loader.hidden).toBe(false);
+    expect(content.getAttribute('aria-hidden')).toBe('true');
+
+    resolveStatus({ connected: false });
+    await ready;
+
+    expect(loader.hidden).toBe(true);
+    expect(content.getAttribute('aria-hidden')).toBe('false');
+    expect(content.hasAttribute('inert')).toBe(false);
+    expect(document.getElementById('tuyaApp')?.getAttribute('aria-busy')).toBe('false');
+    expect(document.getElementById('tuyaDashboardMessage')?.textContent).toContain('has not been authorized');
+
+    dom.window.close();
+  });
+
   test('renders live account data and supports the primary navigation flows', async () => {
     const listeners = new Map<string, UiEventHandler[]>();
     const showSchemaForm = jest.fn();
@@ -30,6 +95,10 @@ describe('Homebridge custom UI', () => {
           homebridge: '^1.8.0 || ^2.0.0',
           repository: 'https://private.example/repository',
           accessToken: 'about-access-token',
+          deviceCategoryOptions: [
+            { code: 'dj', label: 'Light' },
+            { code: 'infrared_ac', label: 'IR air conditioner' },
+          ],
         };
       }
       if (route === '/sharing/accounts') {
@@ -96,6 +165,8 @@ describe('Homebridge custom UI', () => {
               schema: [
                 { code: 'switch_led', mode: 'rw', type: 'Boolean', property: {} },
                 { code: 'work_mode', mode: 'rw', type: 'Enum', property: { range: ['white', 'colour'] } },
+                { code: 'bright_value', mode: 'rw', type: 'Integer', property: { min: 10, max: 1000, scale: 0, step: 1 } },
+                { code: 'temp_value', mode: 'rw', type: 'Integer', property: { min: 0, max: 1000, scale: 0, step: 1 } },
               ],
               status: [
                 { code: 'switch_led', displayValue: 'true', redacted: false, value: 'hidden-source-value' },
@@ -180,7 +251,14 @@ describe('Homebridge custom UI', () => {
     expect(firstInspector.textContent).toContain('switch_led');
     expect(firstInspector.textContent).toContain('Hidden by safety policy');
     expect(firstInspector.textContent).toContain('Safe deviceOverrides draft');
+    expect(firstInspector.textContent).toContain('Accessory options');
+    expect(firstInspector.textContent).toContain('Exact device override');
+    expect(firstInspector.textContent).toContain('Adaptive Lighting');
     expect(firstInspector.textContent).not.toContain('access-token');
+    expect([...document.querySelectorAll('#tuyaCategoryOptions option')].map(option => option.getAttribute('value'))).toEqual([
+      'dj',
+      'infrared_ac',
+    ]);
 
     const copyDraft = [...firstInspector.querySelectorAll('button')]
       .find(button => button.textContent === 'Copy draft') as HTMLButtonElement;
@@ -189,6 +267,38 @@ describe('Homebridge custom UI', () => {
     expect(writeText).toHaveBeenCalledWith('{\n  "id": "device-1",\n  "category": "dj"\n}');
     expect(toast.success).toHaveBeenCalledWith('Override draft copied for Hall light.', 'Device inspector');
     expect(document.body.textContent).not.toContain('sixteen-byte-key');
+
+    const visibility = firstInspector.querySelector('[data-device-option="visible"]') as HTMLInputElement;
+    const saveAccessoryOptions = firstInspector.querySelector('[data-device-options-save]') as HTMLButtonElement;
+    expect(visibility.checked).toBe(true);
+    expect(saveAccessoryOptions.disabled).toBe(true);
+    visibility.click();
+    expect(saveAccessoryOptions.disabled).toBe(false);
+    saveAccessoryOptions.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(updatePluginConfig).toHaveBeenLastCalledWith([
+      expect.objectContaining({
+        options: expect.objectContaining({
+          deviceOverrides: [expect.objectContaining({
+            id: 'device-1',
+            hidden: true,
+            localControl: { mode: 'hybrid', localKey: 'sixteen-byte-key', dpMap: [] },
+          })],
+        }),
+      }),
+    ]);
+    expect(toast.success).toHaveBeenCalledWith(
+      'Accessory options saved for Hall light. Restart Homebridge to apply them.',
+      'Restart required',
+    );
+    expect(document.getElementById('tuyaDashboardDevices')?.textContent).toContain('Restart required');
+    const deviceFilter = document.getElementById('tuyaDeviceFilter') as HTMLSelectElement;
+    deviceFilter.value = 'hidden';
+    deviceFilter.dispatchEvent(new dom.window.Event('change'));
+    expect(document.getElementById('tuyaDashboardDevices')?.textContent).toContain('Hall light');
+    expect(document.getElementById('tuyaDashboardDevices')?.textContent).not.toContain('Door sensor');
+    deviceFilter.value = 'all';
+    deviceFilter.dispatchEvent(new dom.window.Event('change'));
 
     (document.querySelector('[data-tuya-tab="settings"]') as HTMLButtonElement).click();
     expect((document.getElementById('tuyaCapabilityAutoDetection') as HTMLInputElement).checked).toBe(true);
@@ -300,6 +410,117 @@ describe('Homebridge custom UI', () => {
     theme.dispatchEvent(new dom.window.Event('change'));
     expect(document.getElementById('tuyaApp')?.dataset.theme).toBe('dark');
     expect(dom.window.localStorage.getItem('tuya-ultimate-theme')).toBe('dark');
+
+    dom.window.close();
+  });
+
+  test('snapshots inherited advanced settings when saving exact per-device options', async () => {
+    const listeners = new Map<string, UiEventHandler[]>();
+    const updatePluginConfig = jest.fn(async (_config: unknown[]) => undefined);
+    const savePluginConfig = jest.fn(async () => undefined);
+    const toast = { error: jest.fn(), info: jest.fn(), success: jest.fn() };
+    const inheritedOverride = {
+      id: 'product-ac',
+      localControl: {
+        mode: 'hybrid',
+        localKey: 'inherited-local-secret',
+        dpMap: [{ code: 'PowerOn', dpId: 1 }],
+      },
+      schema: [{ code: 'vendor_mode', newCode: 'M', onSet: 'return value' }],
+    };
+    const html = fs.readFileSync(path.join(__dirname, '..', 'homebridge-ui', 'public', 'index.html'), 'utf8');
+    const dom = new JSDOM(html, {
+      beforeParse(window) {
+        window.HTMLElement.prototype.scrollIntoView = jest.fn();
+        Object.defineProperty(window, 'homebridge', {
+          configurable: true,
+          value: {
+            addEventListener(name: string, listener: UiEventHandler) {
+              listeners.set(name, [...(listeners.get(name) || []), listener]);
+            },
+            fixScrollHeight: jest.fn(),
+            getPluginConfig: jest.fn(async () => [{
+              platform: 'TuyaPlatform',
+              name: 'Tuya',
+              options: {
+                projectType: '3',
+                appSchema: 'smartlife',
+                userCode: 'user-1',
+                deviceOverrides: [inheritedOverride],
+              },
+            }]),
+            hideSchemaForm: jest.fn(),
+            request: jest.fn(async (route: string) => {
+              if (route === '/about') return { deviceCategoryOptions: [{ code: 'infrared_ac', label: 'IR air conditioner' }] };
+              if (route === '/sharing/accounts') return { accounts: [] };
+              if (route === '/sharing/status') return { connected: true, matchesConfiguration: true };
+              if (route === '/sharing/overview') {
+                return {
+                  connected: true,
+                  homes: [{ id: 'home-1', name: 'Home', selected: true, deviceCount: 1, onlineCount: 1 }],
+                  devices: [{
+                    id: 'ir-ac-1',
+                    name: 'Bedroom AC',
+                    category: 'infrared_ac',
+                    productId: 'product-ac',
+                    online: true,
+                    schema: [
+                      { code: 'PowerOn', mode: 'wo', type: 'String', property: {} },
+                      { code: 'M', mode: 'wo', type: 'Enum', property: {} },
+                    ],
+                    status: [],
+                  }],
+                };
+              }
+              throw new Error(`Unexpected UI request: ${route}`);
+            }),
+            savePluginConfig,
+            showSchemaForm: jest.fn(),
+            toast,
+            updatePluginConfig,
+          },
+        });
+      },
+      runScripts: 'dangerously',
+      url: 'http://127.0.0.1/plugin-config',
+    });
+
+    await Promise.all((listeners.get('ready') || []).map(listener => listener()));
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const document = dom.window.document;
+    const inspector = document.querySelector('#tuyaDashboardDevices .tuya-device-details') as HTMLDetailsElement;
+    (inspector.querySelector('summary') as HTMLElement).click();
+    expect(inspector.textContent).toContain('Inherited product override');
+    expect(inspector.textContent).toContain('IR AC plain Turn On mode');
+    expect(document.body.textContent).not.toContain('inherited-local-secret');
+
+    const exposure = inspector.querySelector('[data-device-option="exposure"]') as HTMLSelectElement;
+    exposure.value = 'external';
+    exposure.dispatchEvent(new dom.window.Event('change'));
+    const irMode = inspector.querySelector('[data-device-option="irPowerOnMode"]') as HTMLSelectElement;
+    irMode.value = 'last';
+    irMode.dispatchEvent(new dom.window.Event('change'));
+    (inspector.querySelector('[data-device-options-save]') as HTMLButtonElement).click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const savedPlatform = updatePluginConfig.mock.calls[0]?.[0]?.[0] as {
+      options: { deviceOverrides: unknown[] };
+    };
+    expect(savedPlatform.options.deviceOverrides).toEqual([
+      inheritedOverride,
+      {
+        ...inheritedOverride,
+        id: 'ir-ac-1',
+        unbridged: true,
+        irAirConditionerPowerOnMode: 'last',
+      },
+    ]);
+    expect(savePluginConfig).toHaveBeenCalledTimes(1);
+    expect(toast.success).toHaveBeenCalledWith(
+      'Accessory options saved for Bedroom AC. Restart Homebridge to apply them.',
+      'Restart required',
+    );
 
     dom.window.close();
   });

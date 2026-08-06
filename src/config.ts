@@ -13,6 +13,7 @@ export interface TuyaPlatformDeviceSchemaConfig {
 
 export interface TuyaPlatformDeviceConfig {
   id: string;
+  hidden?: boolean;
   category?: string;
   schema?: Array<TuyaPlatformDeviceSchemaConfig>;
   unbridged?: boolean;
