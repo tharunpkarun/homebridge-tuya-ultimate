@@ -27,14 +27,13 @@ export class PrefixLogger implements ExLogger {
     public log: Logger,
     public prefix: string = '',
     public debugMode = false,
-    private mask = !debugMode,
   ) {
     this.debugMode = this.debugMode || process.argv.includes('-D') || process.argv.includes('--debug');
   }
 
   debug(message?: any, ...args: any[]) {
     message = typeof message === 'string' ? this.masking(message) : this.maskingValue(message);
-    args = args?.map(arg => typeof arg === 'string' ? this.masking(arg) : arg);
+    args = args?.map(arg => typeof arg === 'string' ? this.masking(arg) : this.maskingValue(arg));
     if (this.debugMode) {
       this.log.info(util.format(`[%s] ${typeof message === 'string' ? '%s' : '%O'}`, this.prefix, message), ...args);
     } else {
@@ -44,19 +43,19 @@ export class PrefixLogger implements ExLogger {
 
   info(message?: any, ...args: any[]) {
     message = typeof message === 'string' ? this.masking(message) : this.maskingValue(message);
-    args = args?.map(arg => typeof arg === 'string' ? this.masking(arg) : arg);
+    args = args?.map(arg => typeof arg === 'string' ? this.masking(arg) : this.maskingValue(arg));
     this.log.info(util.format(`[%s] ${typeof message === 'string' ? '%s' : '%O'}`, this.prefix, message), ...args);
   }
 
   warn(message?: any, ...args: any[]) {
     message = typeof message === 'string' ? this.masking(message) : this.maskingValue(message);
-    args = args?.map(arg => typeof arg === 'string' ? this.masking(arg) : arg);
+    args = args?.map(arg => typeof arg === 'string' ? this.masking(arg) : this.maskingValue(arg));
     this.log.warn(util.format(`[%s] ${typeof message === 'string' ? '%s' : '%O'}`, this.prefix, message), ...args);
   }
 
   error(message?: any, ...args: any[]) {
     message = typeof message === 'string' ? this.masking(message) : this.maskingValue(message);
-    args = args?.map(arg => typeof arg === 'string' ? this.masking(arg) : arg);
+    args = args?.map(arg => typeof arg === 'string' ? this.masking(arg) : this.maskingValue(arg));
     this.log.error(util.format(`[%s] ${typeof message === 'string' ? '%s' : '%O'}`, this.prefix, message), ...args);
   }
 
@@ -71,15 +70,14 @@ export class PrefixLogger implements ExLogger {
   }
 
   private masking(str: string) : string {
-    if (!this.mask || typeof str !== 'string') {
+    if (typeof str !== 'string') {
       return str;
     }
-    const regex_single = /'(password|token|access_?token|accessKey|tuyaKey|api_?key|secret)'\s*:\s*'[^']*'/gi;
-    const regex_double = /"(password|token|access_?token|accessKey|tuyaKey|api_?key|secret)"\s*:\s*"[^"]*"/gi;
+    const sensitiveKey = 'password|token|access_?token|refresh_?token|access_?key|access_?id|client_?id'
+      + '|local_?key|tuya_?key|api_?key|secret|authorization|x-token|sign';
+    const regex_single = new RegExp(`'(${sensitiveKey})'\\s*:\\s*'[^']*'`, 'gi');
+    const regex_double = new RegExp(`"(${sensitiveKey})"\\s*:\\s*"[^"]*"`, 'gi');
     const spilts = str.split(/\r\n|\n|\r/);
-    if (!spilts.some(s => regex_single.test(s)) && !spilts.some(s => regex_double.test(s))) {
-      return str;
-    }
     const results = spilts
       .map(a => a.replace(regex_single, '\'$1\': \'********\''))
       .map(a => a.replace(regex_double, '"$1": "********"'));
@@ -87,11 +85,13 @@ export class PrefixLogger implements ExLogger {
   }
 
   private maskingValue(obj: any) {
-    if (!this.mask) {
+    if (obj === null || obj === undefined) {
       return obj;
     }
     const cloneObj = cloneDeep(obj);
-    const regex = /(password|token|access_?token|accessKey|tuyakey|api_?key|secret)/i;
+    const sensitiveKey = 'password|token|access_?token|refresh_?token|access_?key|access_?id|client_?id'
+      + '|local_?key|tuya_?key|api_?key|secret|authorization|x-token|sign';
+    const regex = new RegExp(`^(?:${sensitiveKey})$`, 'i');
     for (const key in cloneObj) {
       const value = cloneObj[key];
       if (typeof value === 'function') {

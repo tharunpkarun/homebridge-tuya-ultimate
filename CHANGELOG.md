@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Added
+ - Configurable IR air-conditioner power-on profiles (`Cool`, `Heat`, `Auto`, or `Last`) with deterministic Apple Home automation handling.
+ - Read-only Config UI device inspector with allowlisted schema/status diagnostics and safe `deviceOverrides` drafts.
+ - Bounded runtime command/MQTT health metadata and a revalidated, pseudonymized support-bundle export.
+ - Opt-in capability-based mapping for otherwise unsupported devices that expose recognized standard Tuya datapoints.
+ - Locally sampled energy history with configurable retention and interval, atomic owner-only persistence, and schema scale/unit preservation.
+ - Opt-in Tuya LAN protocol 3.3 command routing with explicit code-to-DP mappings, local-only or cloud-fallback modes, and credential-safe errors.
+ - Optional Developer Cloud product-endpoint fallback for QR-mode IR, lock, and camera operations without duplicating the QR device inventory.
+ - HomeKit Secure Video fragmented-MP4 recording pipeline for compatible FFmpeg/RTSP cameras.
+ - Minimal owner-only accessory-layout backups before stale Homebridge cache entries are removed.
+
+### Changed
+ - Unsupported categories can be conservatively routed by datapoint capability when capability-based detection is enabled.
+
+### Fixed
+ - Ensure an Apple Home plain `Turn On` sequence cannot replay HomeKit's default `Auto` target over the configured IR AC power-on profile, including either write order and delayed writes around the IR debounce.
+
 ## [2.6.7] - (2026.8.3)
 
 ### Fixed

@@ -10,6 +10,12 @@ describe('Homebridge custom UI', () => {
     const listeners = new Map<string, UiEventHandler[]>();
     const showSchemaForm = jest.fn();
     const hideSchemaForm = jest.fn();
+    const writeText = jest.fn(async (_text: string) => undefined);
+    const updatePluginConfig = jest.fn(async () => undefined);
+    const savePluginConfig = jest.fn(async () => undefined);
+    const downloadClick = jest.fn();
+    const createObjectURL = jest.fn(() => 'blob:support-bundle');
+    const revokeObjectURL = jest.fn();
     const toast = {
       error: jest.fn(),
       info: jest.fn(),
@@ -22,6 +28,8 @@ describe('Homebridge custom UI', () => {
           version: '2.5.1',
           node: '22.0.0',
           homebridge: '^1.8.0 || ^2.0.0',
+          repository: 'https://private.example/repository',
+          accessToken: 'about-access-token',
         };
       }
       if (route === '/sharing/accounts') {
@@ -33,13 +41,73 @@ describe('Homebridge custom UI', () => {
       if (route === '/sharing/overview') {
         return {
           connected: true,
+          connectionType: 'account-sharing',
+          appSchema: 'smartlife',
           username: 'Test account',
+          endpoint: 'https://private.example/account',
+          credentials: { accessKey: 'overview-access-key' },
+          runtimeDiagnostics: {
+            version: 1,
+            mqtt: {
+              messageCount: 12,
+              lastMessageAt: 1_700_000_000_000,
+              lastProtocol: 4,
+              lastDeviceReference: 'runtime-device-001',
+              protocols: [{ protocol: 4, count: 10 }, { protocol: 20, count: 2 }],
+              endpoint: 'https://private.example/mqtt',
+            },
+            commands: {
+              retainedCount: 2,
+              outcomeCounts: { success: 1, failure: 1 },
+              requestedRouteCounts: { cloud: 1, local: 0, hybrid: 1 },
+              attemptedRouteCounts: { cloud: 1, local: 1 },
+              durationMs: { min: 25, max: 75, average: 50 },
+              lastCommandAt: 1_700_000_000_020,
+              codeCounts: [{ code: 'switch_led', count: 1 }, { code: 'temp_current', count: 1 }],
+              recent: [{
+                timestamp: 1_700_000_000_010,
+                deviceReference: 'runtime-device-001',
+                codes: ['switch_led'],
+                requestedRoute: 'hybrid',
+                attemptedRoute: 'local',
+                outcome: 'failure',
+                durationMs: 25,
+                errorKind: 'connection',
+                rawValue: 'runtime-raw-value',
+              }],
+            },
+            sourceHash: 'aaaaaaaaaaaaaaaa',
+            localControl: { localKey: 'runtime-local-key' },
+          },
           homes: [
             { id: 'home-1', name: 'Main home', selected: true, deviceCount: 2, onlineCount: 1 },
             { id: 'home-2', name: 'Workshop', selected: true, deviceCount: 1, onlineCount: 1 },
           ],
           devices: [
-            { id: 'device-1', name: 'Hall light', category: 'dj', productName: 'Light', online: true, homeId: 'home-1' },
+            {
+              id: 'device-1',
+              name: 'Hall light',
+              category: 'dj',
+              productId: 'product-1',
+              productName: 'Light',
+              online: true,
+              homeId: 'home-1',
+              connection: { status: 'online', transport: 'cloud', topology: 'direct', setup: 'ready' },
+              schema: [
+                { code: 'switch_led', mode: 'rw', type: 'Boolean', property: {} },
+                { code: 'work_mode', mode: 'rw', type: 'Enum', property: { range: ['white', 'colour'] } },
+              ],
+              status: [
+                { code: 'switch_led', displayValue: 'true', redacted: false, value: 'hidden-source-value' },
+                { code: 'raw_payload', displayValue: 'Hidden', redacted: true },
+              ],
+              statusOmittedCount: 1,
+              overrideDraft: { id: 'device-1', category: 'dj' },
+              localControl: { localKey: 'device-local-key' },
+              lat: '12.345678',
+              lon: '67.890123',
+              url: 'https://private.example/device',
+            },
             { id: 'device-2', name: 'Door sensor', category: 'mcs', productName: 'Contact sensor', online: false, subDevice: true, homeId: 'home-1' },
             { id: 'device-3', name: 'Workshop switch', category: 'kg', productName: 'Switch', online: true, homeId: 'home-2' },
           ],
@@ -52,6 +120,10 @@ describe('Homebridge custom UI', () => {
     const dom = new JSDOM(html, {
       beforeParse(window) {
         window.HTMLElement.prototype.scrollIntoView = jest.fn();
+        window.HTMLAnchorElement.prototype.click = downloadClick;
+        Object.defineProperty(window.navigator, 'clipboard', { configurable: true, value: { writeText } });
+        Object.defineProperty(window.URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+        Object.defineProperty(window.URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
         Object.defineProperty(window, 'homebridge', {
           configurable: true,
           value: {
@@ -69,14 +141,20 @@ describe('Homebridge custom UI', () => {
                 generateWeatherAccessory: false,
                 weatherAPI: 'open-meteo',
                 forceIPv4: false,
+                capabilityAutoDetection: true,
+                energyHistory: { enabled: true, retentionDays: 45, sampleIntervalMinutes: 10 },
+                deviceOverrides: [{
+                  id: 'device-1',
+                  localControl: { mode: 'hybrid', localKey: 'sixteen-byte-key', dpMap: [] },
+                }],
               },
             }]),
             hideSchemaForm,
             request,
-            savePluginConfig: jest.fn(),
+            savePluginConfig,
             showSchemaForm,
             toast,
-            updatePluginConfig: jest.fn(),
+            updatePluginConfig,
           },
         });
       },
@@ -96,12 +174,121 @@ describe('Homebridge custom UI', () => {
     expect(document.getElementById('tuyaDashboardHomes')?.textContent).toContain('Main home');
     expect(document.getElementById('tuyaDashboardDevices')?.textContent).toContain('Door sensor');
 
+    const firstInspector = document.querySelector('#tuyaDashboardDevices .tuya-device-details') as HTMLDetailsElement;
+    (firstInspector.querySelector('summary') as HTMLElement).click();
+    expect(firstInspector.open).toBe(true);
+    expect(firstInspector.textContent).toContain('switch_led');
+    expect(firstInspector.textContent).toContain('Hidden by safety policy');
+    expect(firstInspector.textContent).toContain('Safe deviceOverrides draft');
+    expect(firstInspector.textContent).not.toContain('access-token');
+
+    const copyDraft = [...firstInspector.querySelectorAll('button')]
+      .find(button => button.textContent === 'Copy draft') as HTMLButtonElement;
+    copyDraft.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(writeText).toHaveBeenCalledWith('{\n  "id": "device-1",\n  "category": "dj"\n}');
+    expect(toast.success).toHaveBeenCalledWith('Override draft copied for Hall light.', 'Device inspector');
+    expect(document.body.textContent).not.toContain('sixteen-byte-key');
+
+    (document.querySelector('[data-tuya-tab="settings"]') as HTMLButtonElement).click();
+    expect((document.getElementById('tuyaCapabilityAutoDetection') as HTMLInputElement).checked).toBe(true);
+    expect((document.getElementById('tuyaEnergyHistoryEnabled') as HTMLInputElement).checked).toBe(true);
+    expect((document.getElementById('tuyaEnergyRetentionDays') as HTMLInputElement).value).toBe('45');
+    expect((document.getElementById('tuyaEnergySampleMinutes') as HTMLInputElement).value).toBe('10');
+    (document.getElementById('tuyaCapabilityAutoDetection') as HTMLInputElement).checked = false;
+    (document.getElementById('tuyaEnergyRetentionDays') as HTMLInputElement).value = '60';
+    (document.getElementById('tuyaEnergySampleMinutes') as HTMLInputElement).value = '15';
+    (document.getElementById('tuyaSaveSettings') as HTMLButtonElement).click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(updatePluginConfig).toHaveBeenLastCalledWith([
+      expect.objectContaining({
+        options: expect.objectContaining({
+          capabilityAutoDetection: false,
+          energyHistory: { enabled: true, retentionDays: 60, sampleIntervalMinutes: 15 },
+        }),
+      }),
+    ]);
+    expect(savePluginConfig).toHaveBeenCalled();
+
+    (document.querySelector('[data-tuya-tab="advanced"]') as HTMLButtonElement).click();
+    const copySupportBundle = document.getElementById('tuyaCopySupportBundle') as HTMLButtonElement;
+    const downloadSupportBundle = document.getElementById('tuyaDownloadSupportBundle') as HTMLButtonElement;
+    expect(copySupportBundle.disabled).toBe(false);
+    expect(downloadSupportBundle.disabled).toBe(false);
+    copySupportBundle.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const bundleText = writeText.mock.calls[writeText.mock.calls.length - 1]?.[0] as string;
+    const bundle = JSON.parse(bundleText);
+    expect(bundle).toMatchObject({
+      format: 'homebridge-tuya-support-bundle',
+      formatVersion: 1,
+      plugin: { packageName: 'homebridge-tuya-ultimate', version: '2.5.1' },
+      connection: { type: 'account-sharing', app: 'smartlife', connected: true },
+      homes: {
+        count: 2,
+        selectedCount: 2,
+        items: [
+          { reference: 'home-001', selected: true, deviceCount: 2, onlineCount: 1 },
+          { reference: 'home-002', selected: true, deviceCount: 1, onlineCount: 1 },
+        ],
+      },
+      devices: { count: 3, onlineCount: 2 },
+      runtimeDiagnostics: {
+        version: 1,
+        mqtt: {
+          messageCount: 12,
+          lastMessageAt: 1_700_000_000_000,
+          lastProtocol: 4,
+          lastDeviceReference: 'runtime-device-001',
+          protocols: [{ protocol: 4, count: 10 }, { protocol: 20, count: 2 }],
+        },
+        commands: {
+          retainedCount: 2,
+          outcomeCounts: { success: 1, failure: 1 },
+          requestedRouteCounts: { cloud: 1, local: 0, hybrid: 1 },
+          attemptedRouteCounts: { cloud: 1, local: 1 },
+          durationMs: { min: 25, max: 75, average: 50 },
+          lastCommandAt: 1_700_000_000_020,
+          codeCounts: [{ code: 'switch_led', count: 1 }, { code: 'temp_current', count: 1 }],
+          recent: [expect.objectContaining({
+            deviceReference: 'runtime-device-001',
+            codes: ['switch_led'],
+            outcome: 'failure',
+            errorKind: 'connection',
+          })],
+        },
+      },
+    });
+    expect(bundle.devices.items[0]).toMatchObject({
+      reference: 'device-001',
+      homeReference: 'home-001',
+      category: 'dj',
+      status: [
+        { code: 'switch_led', visibility: 'safe-scalar-observed' },
+        { code: 'raw_payload', visibility: 'redacted' },
+      ],
+    });
+    expect(bundle.devices.items[0].schema[1].constraints).toEqual({});
+    for (const excluded of [
+      'Test account', 'Main home', 'Workshop', 'Hall light', 'device-1', 'home-1', 'product-1',
+      'private.example', 'overview-access-key', 'device-local-key', 'hidden-source-value', '12.345678', '67.890123',
+      'about-access-token', 'runtime-raw-value', 'runtime-local-key', 'aaaaaaaaaaaaaaaa',
+    ]) {
+      expect(bundleText).not.toContain(excluded);
+    }
+    downloadSupportBundle.click();
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(downloadClick).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:support-bundle');
+
     (document.querySelector('[data-tuya-tab="account"]') as HTMLButtonElement).click();
     expect(document.getElementById('tuyaPanelAccount')?.hidden).toBe(false);
     (document.querySelector('[data-project-type="1"]') as HTMLButtonElement).click();
     expect(document.getElementById('tuyaQrAccount')?.hidden).toBe(true);
     expect(document.getElementById('tuyaDeveloperAccount')?.hidden).toBe(false);
     expect(document.getElementById('tuyaDeveloperTitle')?.textContent).toBe('Custom cloud project');
+    expect(copySupportBundle.disabled).toBe(true);
+    expect(downloadSupportBundle.disabled).toBe(true);
 
     (document.querySelector('[data-tuya-tab="advanced"]') as HTMLButtonElement).click();
     (document.getElementById('tuyaToggleSchema') as HTMLButtonElement).click();

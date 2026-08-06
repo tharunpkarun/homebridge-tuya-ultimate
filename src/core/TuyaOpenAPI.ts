@@ -52,6 +52,7 @@ const API_ERROR_MESSAGES = {
   28841101: API_NOT_SUBSCRIBED_ERROR,
   28841105: API_NOT_SUBSCRIBED_ERROR,
 };
+const MAX_API_RESPONSE_BYTES = 16 * 1024 * 1024;
 
 type TuyaOpenAPIResponseSuccess = {
   success: true;
@@ -97,6 +98,8 @@ export default class TuyaOpenAPI {
     public lang = 'en',
     public debug = false,
     public forceIPv4 = false,
+    public retriesMax = 10,
+    public requestTimeoutMs = 15_000,
   ) {
     this.log = new PrefixLogger(logger(), TuyaOpenAPI.name, debug);
   }
@@ -288,35 +291,82 @@ export default class TuyaOpenAPI {
       'dev_channel': 'homebridge',
       'devVersion': version,
     };
+    const diagnosticPath = path.replace(/^(\/v1\.0\/token\/)[^/?]+/, '$1[redacted]');
     this.log.debug('Request:\nmethod = %s\nendpoint = %s\npath = %s\nquery = %s\nheaders = %s\nbody = %s',
-      method, this.endpoint, path, JSON.stringify(params, null, 2), JSON.stringify(headers, null, 2), JSON.stringify(body, null, 2));
+      method, this.endpoint, diagnosticPath, JSON.stringify(params, null, 2), JSON.stringify(headers, null, 2), JSON.stringify(body, null, 2));
 
     if (params) {
       path += '?' + new URLSearchParams(params).toString();
     }
 
-    const res: TuyaOpenAPIResponse = await retry(async () => new Promise((resolve, reject) => {
+    const res: TuyaOpenAPIResponse = await retry(async () => new Promise<TuyaOpenAPIResponse>((resolve, reject) => {
+      let settled = false;
+      const finishResolve = (value: TuyaOpenAPIResponse) => {
+        if (!settled) {
+          settled = true;
+          resolve(value);
+        }
+      };
+      const finishReject = (error: Error) => {
+        if (!settled) {
+          settled = true;
+          reject(error);
+        }
+      };
       const requestOptions = {
         host: new URL(this.endpoint).host,
         method,
         headers,
         path,
+        signal: AbortSignal.timeout(this.requestTimeoutMs),
       };
       if (this.forceIPv4) {
         requestOptions['agent'] = ipv4Agent;
       }
       const req = https.request(requestOptions, res => {
+        res.on('error', error => finishReject(error));
+        res.on('aborted', () => finishReject(new Error('Tuya Cloud response was aborted.')));
         if (res.statusCode !== 200) {
           this.log.warn('Status: %d %s', res.statusCode, res.statusMessage);
+          res.resume();
+          finishResolve({
+            success: false,
+            result: undefined,
+            code: res.statusCode ?? 0,
+            msg: `Tuya Cloud returned HTTP ${res.statusCode ?? 'unknown'}.`,
+            t: Date.now(),
+            tid: '',
+          });
           return;
         }
         res.setEncoding('utf8');
         let rawData = '';
+        let responseBytes = 0;
+        let responseEnded = false;
         res.on('data', (chunk) => {
+          if (settled) {
+            return;
+          }
+          responseBytes += Buffer.byteLength(chunk);
+          if (responseBytes > MAX_API_RESPONSE_BYTES) {
+            finishReject(new Error('Tuya Cloud response exceeded the safety limit.'));
+            res.destroy();
+            return;
+          }
           rawData += chunk;
         });
+        res.on('close', () => {
+          if (!responseEnded) {
+            finishReject(new Error('Tuya Cloud response closed before completion.'));
+          }
+        });
         res.on('end', () => {
-          resolve(JSON.parse(rawData));
+          responseEnded = true;
+          try {
+            finishResolve(JSON.parse(rawData));
+          } catch {
+            finishReject(new Error('Tuya Cloud returned malformed JSON.'));
+          }
         });
       });
 
@@ -325,13 +375,18 @@ export default class TuyaOpenAPI {
       }
 
       req.on('error', e => {
-        this.log.error('Network error: %s. Retrying...', e.message);
-        reject(e);
+        if (!settled) {
+          this.log.error('Network error: %s. Retrying...', e.message);
+        }
+        finishReject(e);
+      });
+      req.setTimeout(this.requestTimeoutMs, () => {
+        req.destroy(new Error('Tuya Cloud request timed out.'));
       });
       req.end();
-    }), undefined, {retriesMax: 10, interval: 100, exponential: true, factor: 2, jitter: 100});
+    }), undefined, {retriesMax: this.retriesMax, interval: 100, exponential: true, factor: 2, jitter: 100});
 
-    this.log.debug('Response:\npath = %s\ndata = %s', path, JSON.stringify(res, null, 2));
+    this.log.debug('Response:\npath = %s\ndata = %s', diagnosticPath, JSON.stringify(res, null, 2));
     if (res && res.success !== true && API_ERROR_MESSAGES[res.code]) {
       this.log.error(API_ERROR_MESSAGES[res.code]);
     }

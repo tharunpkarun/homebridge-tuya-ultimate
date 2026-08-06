@@ -171,6 +171,7 @@
   .tuya-scan-step span { display: block; margin-top: 2px; color: var(--tuya-muted); font-size: .66rem; }
 
   .tuya-home-card, .tuya-device-card { min-width: 0; padding: 12px; color: var(--tuya-text); background: var(--tuya-surface-soft); border: 1px solid var(--tuya-border); border-radius: 11px; }
+  .tuya-device-card { display: flex; flex-direction: column; }
   .tuya-card-head { display: flex; gap: 9px; align-items: flex-start; }
   .tuya-card-icon { width: 36px; height: 36px; flex: 0 0 36px; display: grid; place-items: center; color: var(--tuya-primary); background: var(--tuya-primary-soft); border-radius: 9px; }
   .tuya-card-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
@@ -191,6 +192,23 @@
   .tuya-kv { display: grid; grid-template-columns: minmax(110px, .75fr) 1.5fr; gap: 7px 12px; }
   .tuya-kv dt { color: var(--tuya-muted); font-size: .69rem; }
   .tuya-kv dd { margin: 0; overflow-wrap: anywhere; color: var(--tuya-text); font-size: .73rem; }
+  .tuya-device-details { margin-top: 10px; border-top: 1px solid var(--tuya-border); }
+  .tuya-device-details > summary { padding: 10px 1px 0; cursor: pointer; color: var(--tuya-primary); font-size: .72rem; font-weight: 800; }
+  .tuya-device-details[open] > summary { margin-bottom: 10px; }
+  .tuya-inspector { display: grid; gap: 10px; }
+  .tuya-inspector-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .tuya-inspector-block { min-width: 0; padding: 10px; background: var(--tuya-surface); border: 1px solid var(--tuya-border); border-radius: 9px; }
+  .tuya-inspector-block h5 { margin: 0 0 8px; color: var(--tuya-text); font-size: .75rem; }
+  .tuya-inspector-block .tuya-kv { grid-template-columns: minmax(82px, .7fr) 1.3fr; }
+  .tuya-table-wrap { max-height: 220px; overflow: auto; border: 1px solid var(--tuya-border); border-radius: 8px; }
+  .tuya-diagnostic-table { width: 100%; border-collapse: collapse; font-size: .68rem; }
+  .tuya-diagnostic-table th, .tuya-diagnostic-table td { padding: 7px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--tuya-border); }
+  .tuya-diagnostic-table tr:last-child td { border-bottom: 0; }
+  .tuya-diagnostic-table th { position: sticky; top: 0; color: var(--tuya-muted); background: var(--tuya-surface); font-size: .61rem; text-transform: uppercase; letter-spacing: .04em; }
+  .tuya-diagnostic-table td { overflow-wrap: anywhere; color: var(--tuya-text); }
+  .tuya-diagnostic-note { margin: 7px 0 0; color: var(--tuya-muted); font-size: .63rem; line-height: 1.4; }
+  .tuya-draft { padding: 9px; margin: 0; overflow: auto; color: var(--tuya-text); background: var(--tuya-surface-soft); border: 1px solid var(--tuya-border); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .tuya-status-hidden { color: var(--tuya-muted); font-style: italic; }
   .tuya-footer { padding: 0 16px 16px; color: var(--tuya-muted); text-align: center; font-size: .67rem; }
 
   @media (max-width: 700px) {
@@ -205,6 +223,7 @@
     .tuya-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .tuya-progress { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .tuya-form-grid { grid-template-columns: 1fr; }
+    .tuya-inspector-grid { grid-template-columns: 1fr; }
     .tuya-field-wide { grid-column: auto; }
   }
 </style>
@@ -274,17 +293,19 @@
 
       <div class="tuya-section">
         <div class="tuya-section-header">
-          <div><h3>Device snapshot</h3><div class="tuya-subtitle">A read-only view of devices currently visible to this account.</div></div>
+          <div><h3>Device inspector</h3><div class="tuya-subtitle">Read-only identity, connection, schema, and sanitized status diagnostics.</div></div>
           <div class="tuya-toolbar">
             <input id="tuyaDeviceSearch" class="tuya-input tuya-device-search" type="search" placeholder="Search devices" aria-label="Search devices">
             <select id="tuyaDeviceFilter" class="tuya-input tuya-auto-width" aria-label="Filter devices">
               <option value="all">All devices</option>
               <option value="online">Online</option>
               <option value="offline">Offline</option>
+              <option value="unknown">Connection unknown</option>
               <option value="sub">Zigbee / sub-devices</option>
             </select>
           </div>
         </div>
+        <div class="tuya-callout tuya-mb-12">Sensitive datapoints and all raw string, JSON, URL, credential, key, location, and token values are hidden before reaching this page. Override drafts are inert snippets and are never applied automatically.</div>
         <div id="tuyaDashboardDevices" class="tuya-grid"><div class="tuya-empty">No device data loaded yet.</div></div>
       </div>
     </section>
@@ -414,6 +435,10 @@
           <label class="tuya-check"><input id="tuyaWeather" type="checkbox"><span><strong>Generate a weather accessory</strong><br><span class="tuya-help">Uses a device location to expose local weather in HomeKit.</span></span></label>
           <div class="tuya-field"><label for="tuyaWeatherApi">Weather provider</label><select id="tuyaWeatherApi" class="tuya-input"><option value="open-meteo">Open-Meteo</option><option value="tuya">Tuya weather API</option></select></div>
           <label class="tuya-check"><input id="tuyaForceIpv4" type="checkbox"><span><strong>Force IPv4</strong><br><span class="tuya-help">Useful only when IPv6 routing causes cloud connectivity problems.</span></span></label>
+          <label class="tuya-check"><input id="tuyaCapabilityAutoDetection" type="checkbox"><span><strong>Capability-based device detection</strong><br><span class="tuya-help">Conservatively map otherwise unsupported devices from standard Tuya datapoints. Explicit overrides still win.</span></span></label>
+          <label class="tuya-check tuya-grid-wide"><input id="tuyaEnergyHistoryEnabled" type="checkbox"><span><strong>Keep local energy history</strong><br><span class="tuya-help">Store allowlisted power, current, voltage, and energy samples for diagnostics. This never stores device credentials.</span></span></label>
+          <div class="tuya-field"><label for="tuyaEnergyRetentionDays">Energy retention (days)</label><input id="tuyaEnergyRetentionDays" class="tuya-input" type="number" min="1" max="365" step="1"><span class="tuya-help">1–365 days; 30 by default.</span></div>
+          <div class="tuya-field"><label for="tuyaEnergySampleMinutes">Energy sample interval (minutes)</label><input id="tuyaEnergySampleMinutes" class="tuya-input" type="number" min="1" max="1440" step="1"><span class="tuya-help">1–1440 minutes; 5 by default.</span></div>
           <label class="tuya-check"><input id="tuyaDebug" type="checkbox"><span><strong>Debug logging</strong><br><span class="tuya-help">Enable temporarily while diagnosing a problem.</span></span></label>
           <div class="tuya-field tuya-field-wide"><label for="tuyaDebugLevel">Debug scopes</label><input id="tuyaDebugLevel" class="tuya-input tuya-mono" type="text" placeholder="api or a comma-separated list of device IDs"><span class="tuya-help">Leave blank to use the plugin's default debug output.</span></div>
         </div>
@@ -428,6 +453,17 @@
           <button id="tuyaToggleSchema" class="tuya-button tuya-button-primary" type="button">Open full schema editor</button>
         </div>
         <div class="tuya-callout tuya-callout-warning"><strong>Use overrides deliberately.</strong> The guided settings cover normal installations. The full schema editor is intended for unusual products and troubleshooting, and appears below this dashboard when opened.</div>
+      </div>
+
+      <div class="tuya-section">
+        <div class="tuya-section-header">
+          <div><h3>Sanitized support bundle</h3><div class="tuya-subtitle">Share bounded diagnostics without account, configuration, location, URL, device-name, or raw datapoint data.</div></div>
+          <div class="tuya-toolbar">
+            <button id="tuyaCopySupportBundle" class="tuya-button tuya-button-primary" type="button" disabled>Copy bundle</button>
+            <button id="tuyaDownloadSupportBundle" class="tuya-button" type="button" disabled>Download JSON</button>
+          </div>
+        </div>
+        <div id="tuyaSupportBundleStatus" class="tuya-callout">Refresh a connected QR account to prepare a support bundle.</div>
       </div>
 
       <div class="tuya-section">
@@ -492,6 +528,11 @@
       if (value.generateWeatherAccessory === undefined) value.generateWeatherAccessory = false
       value.weatherAPI ||= 'open-meteo'
       if (value.forceIPv4 === undefined) value.forceIPv4 = false
+      if (value.capabilityAutoDetection === undefined) value.capabilityAutoDetection = false
+      value.energyHistory ||= {}
+      if (value.energyHistory.enabled === undefined) value.energyHistory.enabled = false
+      value.energyHistory.retentionDays ||= 30
+      value.energyHistory.sampleIntervalMinutes ||= 5
     }
 
     function appLabel(schema = options().appSchema) {
@@ -572,6 +613,355 @@
       return element('span', `tuya-badge${tone ? ` tuya-badge-${tone}` : ''}`, label)
     }
 
+    function titleCase(value) {
+      return String(value || 'unknown').replace(/-/g, ' ').replace(/\b\w/g, character => character.toUpperCase())
+    }
+
+    function appendKeyValues(root, rows) {
+      rows.forEach(([label, value, mono]) => {
+        root.append(element('dt', '', label), element('dd', mono ? 'tuya-mono' : '', value || '—'))
+      })
+    }
+
+    function schemaPropertyLabel(entry) {
+      const property = entry.property || {}
+      if (Array.isArray(property.range) && property.range.length) return property.range.join(', ')
+      const values = []
+      if (property.min !== undefined || property.max !== undefined) values.push(`${property.min ?? '…'} to ${property.max ?? '…'}`)
+      if (property.step !== undefined) values.push(`step ${property.step}`)
+      if (property.scale !== undefined) values.push(`scale ${property.scale}`)
+      return values.join(' · ') || '—'
+    }
+
+    function diagnosticTable(headers, rows) {
+      const wrap = element('div', 'tuya-table-wrap')
+      const table = element('table', 'tuya-diagnostic-table')
+      const head = element('thead')
+      const headRow = element('tr')
+      headers.forEach(header => headRow.append(element('th', '', header)))
+      head.append(headRow)
+      const body = element('tbody')
+      rows.forEach(row => {
+        const tr = element('tr')
+        row.forEach(cell => tr.append(cell instanceof Node ? cell : element('td', '', cell)))
+        body.append(tr)
+      })
+      table.append(head, body)
+      wrap.append(table)
+      return wrap
+    }
+
+    async function copyText(text) {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+        return
+      }
+      const input = element('textarea')
+      input.value = text
+      input.setAttribute('readonly', '')
+      input.style.position = 'fixed'
+      input.style.opacity = '0'
+      document.body.append(input)
+      input.select()
+      const copied = document.execCommand?.('copy')
+      input.remove()
+      if (!copied) throw new Error('Clipboard access is unavailable in this browser.')
+    }
+
+    function supportIdentifier(value, fallback = 'unknown') {
+      const text = typeof value === 'string' ? value : ''
+      return /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,95}$/.test(text) ? text : fallback
+    }
+
+    function supportCount(value) {
+      return Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0
+    }
+
+    function supportEnum(value, allowed, fallback = 'unknown') {
+      return allowed.includes(value) ? value : fallback
+    }
+
+    function validSupportCount(value) {
+      return Number.isSafeInteger(value) && value >= 0
+    }
+
+    function buildRuntimeSupportSummary(runtime) {
+      if (!runtime || runtime.version !== 1 || !runtime.mqtt || !runtime.commands) return undefined
+      if (!validSupportCount(runtime.mqtt.messageCount)
+        || !Array.isArray(runtime.mqtt.protocols)
+        || !validSupportCount(runtime.commands.retainedCount)
+        || runtime.commands.retainedCount > 100) return undefined
+      const protocols = runtime.mqtt.protocols.slice(0, 32).flatMap(item => (
+        Number.isInteger(item?.protocol) && item.protocol >= 0 && item.protocol <= 99999 && validSupportCount(item.count)
+          ? [{ protocol: item.protocol, count: item.count }]
+          : []
+      ))
+      const mqtt = { messageCount: runtime.mqtt.messageCount, protocols }
+      if (validSupportCount(runtime.mqtt.lastMessageAt)) mqtt.lastMessageAt = runtime.mqtt.lastMessageAt
+      if (Number.isInteger(runtime.mqtt.lastProtocol) && runtime.mqtt.lastProtocol >= 0 && runtime.mqtt.lastProtocol <= 99999) mqtt.lastProtocol = runtime.mqtt.lastProtocol
+      if (typeof runtime.mqtt.lastDeviceReference === 'string'
+        && /^runtime-device-\d{3}$/.test(runtime.mqtt.lastDeviceReference)) mqtt.lastDeviceReference = runtime.mqtt.lastDeviceReference
+
+      const copyCounts = (source, keys) => {
+        if (!source || keys.some(key => !validSupportCount(source[key]))) return undefined
+        return Object.fromEntries(keys.map(key => [key, source[key]]))
+      }
+      const outcomeCounts = copyCounts(runtime.commands.outcomeCounts, ['success', 'failure'])
+      const requestedRouteCounts = copyCounts(runtime.commands.requestedRouteCounts, ['cloud', 'local', 'hybrid'])
+      const attemptedRouteCounts = copyCounts(runtime.commands.attemptedRouteCounts, ['cloud', 'local'])
+      const duration = runtime.commands.durationMs
+      if (!outcomeCounts || !requestedRouteCounts || !attemptedRouteCounts || !duration
+        || !['min', 'max', 'average'].every(key => validSupportCount(duration[key]) && duration[key] <= 300000)) return undefined
+
+      const codeCounts = Array.isArray(runtime.commands.codeCounts)
+        ? runtime.commands.codeCounts.slice(0, 64).flatMap(item => {
+            const code = supportIdentifier(item?.code)
+            return code !== 'unknown' && validSupportCount(item.count) ? [{ code, count: item.count }] : []
+          })
+        : []
+      const recent = Array.isArray(runtime.commands.recent)
+        ? runtime.commands.recent.slice(-25).flatMap(command => {
+            if (!validSupportCount(command?.timestamp)
+              || typeof command.deviceReference !== 'string'
+              || !/^runtime-device-\d{3}$/.test(command.deviceReference)
+              || !Array.isArray(command.codes)
+              || !['cloud', 'local', 'hybrid'].includes(command.requestedRoute)
+              || !['cloud', 'local'].includes(command.attemptedRoute)
+              || !['success', 'failure'].includes(command.outcome)
+              || !Number.isInteger(command.durationMs)
+              || command.durationMs < 0
+              || command.durationMs > 300000) return []
+            const entry = {
+              timestamp: command.timestamp,
+              deviceReference: command.deviceReference,
+              codes: command.codes.slice(0, 16).map(code => supportIdentifier(code)).filter(code => code !== 'unknown'),
+              requestedRoute: command.requestedRoute,
+              attemptedRoute: command.attemptedRoute,
+              outcome: command.outcome,
+              durationMs: command.durationMs,
+            }
+            if (command.outcome === 'failure' && ['configuration', 'connection', 'rejected', 'timeout', 'unknown'].includes(command.errorKind)) entry.errorKind = command.errorKind
+            return [entry]
+          })
+        : []
+      const commands = {
+        retainedCount: runtime.commands.retainedCount,
+        outcomeCounts,
+        requestedRouteCounts,
+        attemptedRouteCounts,
+        durationMs: { min: duration.min, max: duration.max, average: duration.average },
+        codeCounts,
+        recent,
+      }
+      if (validSupportCount(runtime.commands.lastCommandAt)) commands.lastCommandAt = runtime.commands.lastCommandAt
+      return { version: 1, mqtt, commands }
+    }
+
+    function buildSupportBundle() {
+      if (!overview.connected) throw new Error('Refresh a connected account before creating a support bundle.')
+      const homeReferences = new Map()
+      const homes = (overview.homes || []).map((home, index) => {
+        const reference = `home-${String(index + 1).padStart(3, '0')}`
+        homeReferences.set(String(home.id), reference)
+        return {
+          reference,
+          selected: home.selected === true,
+          deviceCount: supportCount(home.deviceCount),
+          onlineCount: supportCount(home.onlineCount),
+        }
+      })
+      const deviceReferences = new Map()
+      let nextDeviceReference = 1
+      const devices = (overview.devices || []).map((device, index) => {
+        const sourceKey = device.id === undefined ? `missing-${index}` : String(device.id)
+        if (!deviceReferences.has(sourceKey)) {
+          deviceReferences.set(sourceKey, `device-${String(nextDeviceReference).padStart(3, '0')}`)
+          nextDeviceReference += 1
+        }
+        const connection = device.connection || {}
+        const schema = (device.schema || []).slice(0, 128).map(entry => {
+          const constraints = {}
+          if (entry.type === 'Integer') {
+            for (const key of ['min', 'max', 'scale', 'step']) {
+              const value = entry.property?.[key]
+              if (typeof value === 'number' && Number.isFinite(value)) constraints[key] = value
+            }
+          }
+          return {
+            code: supportIdentifier(entry.code),
+            mode: supportEnum(entry.mode, ['ro', 'rw', 'wo', 'unknown']),
+            type: supportEnum(entry.type, ['Boolean', 'Integer', 'Enum', 'String', 'Json', 'Raw', 'Bitmap', 'Unknown'], 'Unknown'),
+            constraints,
+          }
+        }).filter(entry => entry.code !== 'unknown')
+        const status = (device.status || []).slice(0, 128).map(entry => ({
+          code: supportIdentifier(entry.code),
+          visibility: entry.redacted ? 'redacted' : 'safe-scalar-observed',
+        })).filter(entry => entry.code !== 'unknown')
+        return {
+          reference: deviceReferences.get(sourceKey),
+          homeReference: homeReferences.get(String(device.homeId)) || 'unassigned',
+          category: supportIdentifier(device.category),
+          connection: {
+            status: supportEnum(connection.status || (device.online === true ? 'online' : device.online === false ? 'offline' : 'unknown'), ['online', 'offline', 'unknown']),
+            transport: supportEnum(connection.transport || 'cloud', ['cloud']),
+            topology: supportEnum(connection.topology || (device.subDevice === true ? 'sub-device' : 'direct'), ['direct', 'sub-device']),
+            setup: supportEnum(connection.setup, ['ready', 'incomplete', 'unknown']),
+          },
+          schema,
+          schemaOmittedCount: supportCount(device.schemaOmittedCount),
+          status,
+          statusOmittedCount: supportCount(device.statusOmittedCount),
+        }
+      })
+      const bundle = {
+        format: 'homebridge-tuya-support-bundle',
+        formatVersion: 1,
+        generatedAt: new Date().toISOString(),
+        plugin: {
+          packageName: supportIdentifier(about.packageName, 'homebridge-tuya-ultimate'),
+          version: supportIdentifier(about.version),
+        },
+        connection: {
+          type: supportEnum(overview.connectionType, ['account-sharing']),
+          app: supportEnum(overview.appSchema, ['smartlife', 'tuyaSmart']),
+          connected: true,
+        },
+        homes: {
+          count: homes.length,
+          selectedCount: homes.filter(home => home.selected).length,
+          items: homes,
+        },
+        devices: {
+          count: devices.length,
+          onlineCount: devices.filter(device => device.connection.status === 'online').length,
+          items: devices,
+        },
+      }
+      const runtimeDiagnostics = buildRuntimeSupportSummary(overview.runtimeDiagnostics)
+      if (runtimeDiagnostics) bundle.runtimeDiagnostics = runtimeDiagnostics
+      return bundle
+    }
+
+    function supportBundleJson() {
+      return JSON.stringify(buildSupportBundle(), null, 2)
+    }
+
+    async function copySupportBundle() {
+      try {
+        await copyText(supportBundleJson())
+        homebridge.toast.success('Sanitized support bundle copied.', 'Device inspector')
+      } catch (error) {
+        homebridge.toast.error(errorMessage(error), 'Could not copy support bundle')
+      }
+    }
+
+    function downloadSupportBundle() {
+      try {
+        if (!URL.createObjectURL) throw new Error('Downloads are unavailable in this browser.')
+        const url = URL.createObjectURL(new Blob([supportBundleJson()], { type: 'application/json' }))
+        const link = element('a')
+        link.href = url
+        link.download = 'homebridge-tuya-support-bundle.json'
+        document.body.append(link)
+        link.click()
+        link.remove()
+        URL.revokeObjectURL(url)
+        homebridge.toast.success('Sanitized support bundle downloaded.', 'Device inspector')
+      } catch (error) {
+        homebridge.toast.error(errorMessage(error), 'Could not download support bundle')
+      }
+    }
+
+    function renderDeviceInspector(device) {
+      const details = element('details', 'tuya-device-details')
+      details.append(element('summary', '', 'Inspect sanitized diagnostics'))
+      details.addEventListener('toggle', () => homebridge.fixScrollHeight())
+      const inspector = element('div', 'tuya-inspector')
+      const summaryGrid = element('div', 'tuya-inspector-grid')
+
+      const identityBlock = element('div', 'tuya-inspector-block')
+      identityBlock.append(element('h5', '', 'Identity'))
+      const identity = element('dl', 'tuya-kv')
+      appendKeyValues(identity, [
+        ['Device ID', device.id, true],
+        ['Product ID', device.productId, true],
+        ['Product', device.productName],
+        ['Category', device.category, true],
+        ['Home ID', device.homeId, true],
+      ])
+      identityBlock.append(identity)
+
+      const connectionBlock = element('div', 'tuya-inspector-block')
+      connectionBlock.append(element('h5', '', 'Connection'))
+      const connection = element('dl', 'tuya-kv')
+      appendKeyValues(connection, [
+        ['Status', titleCase(device.connection?.status)],
+        ['Transport', 'Tuya cloud'],
+        ['Topology', titleCase(device.connection?.topology)],
+        ['Setup', titleCase(device.connection?.setup)],
+      ])
+      connectionBlock.append(connection)
+      summaryGrid.append(identityBlock, connectionBlock)
+      inspector.append(summaryGrid)
+
+      const schemaBlock = element('div', 'tuya-inspector-block')
+      schemaBlock.append(element('h5', '', `Datapoint schema (${(device.schema || []).length})`))
+      if ((device.schema || []).length) {
+        schemaBlock.append(diagnosticTable(['Code', 'Access', 'Type', 'Constraints'], device.schema.map(entry => [
+          element('td', 'tuya-mono', entry.code),
+          element('td', '', entry.mode || 'unknown'),
+          element('td', '', entry.type || 'Unknown'),
+          element('td', '', schemaPropertyLabel(entry)),
+        ])))
+      } else {
+        schemaBlock.append(element('div', 'tuya-empty', 'No safe schema metadata was returned for this device.'))
+      }
+      if (device.schemaOmittedCount) schemaBlock.append(element('p', 'tuya-diagnostic-note', `${device.schemaOmittedCount} additional schema item(s) were omitted by the safety limit.`))
+      inspector.append(schemaBlock)
+
+      const statusBlock = element('div', 'tuya-inspector-block')
+      statusBlock.append(element('h5', '', `Current status (${(device.status || []).length})`))
+      if ((device.status || []).length) {
+        statusBlock.append(diagnosticTable(['Code', 'Sanitized value'], device.status.map(entry => [
+          element('td', 'tuya-mono', entry.code),
+          element('td', entry.redacted ? 'tuya-status-hidden' : 'tuya-mono', entry.redacted ? 'Hidden by safety policy' : entry.displayValue),
+        ])))
+      } else {
+        statusBlock.append(element('div', 'tuya-empty', 'No safe status datapoints were returned for this device.'))
+      }
+      const redactedCount = (device.status || []).filter(entry => entry.redacted).length
+      if (redactedCount || device.statusOmittedCount) {
+        statusBlock.append(element('p', 'tuya-diagnostic-note', `${redactedCount} value(s) hidden and ${device.statusOmittedCount || 0} sensitive or excess item(s) omitted. Raw values are never available in this inspector.`))
+      }
+      inspector.append(statusBlock)
+
+      if (device.overrideDraft) {
+        const draftBlock = element('div', 'tuya-inspector-block')
+        const draftHeader = element('div', 'tuya-section-header')
+        const draftTitle = element('div')
+        draftTitle.append(element('h5', '', 'Safe deviceOverrides draft'), element('div', 'tuya-subtitle', 'Minimal valid identity/category entry. Add only the individual datapoint changes you intend.'))
+        const copy = element('button', 'tuya-button', 'Copy draft')
+        copy.type = 'button'
+        const draftText = JSON.stringify(device.overrideDraft, null, 2)
+        copy.addEventListener('click', async () => {
+          try {
+            await copyText(draftText)
+            homebridge.toast.success(`Override draft copied for ${device.name}.`, 'Device inspector')
+          } catch (error) {
+            homebridge.toast.error(errorMessage(error), 'Could not copy override draft')
+          }
+        })
+        draftHeader.append(draftTitle, copy)
+        const draft = element('pre', 'tuya-draft tuya-mono', draftText)
+        draft.setAttribute('aria-label', `Override draft for ${device.name}`)
+        draftBlock.append(draftHeader, draft)
+        inspector.append(draftBlock)
+      }
+      details.append(inspector)
+      return details
+    }
+
     function renderHomes() {
       const root = byId('tuyaDashboardHomes')
       root.replaceChildren()
@@ -603,10 +993,11 @@
       const query = byId('tuyaDeviceSearch').value.trim().toLowerCase()
       const filter = byId('tuyaDeviceFilter').value
       const devices = (overview.devices || []).filter(device => {
-        const matchesText = !query || `${device.name} ${device.category} ${device.productName}`.toLowerCase().includes(query)
+        const schemaCodes = (device.schema || []).map(entry => entry.code).join(' ')
+        const matchesText = !query || `${device.name} ${device.id} ${device.category} ${device.productName || ''} ${device.productId || ''} ${schemaCodes}`.toLowerCase().includes(query)
+        const connectionStatus = device.connection?.status || (device.online ? 'online' : 'offline')
         const matchesFilter = filter === 'all'
-          || (filter === 'online' && device.online)
-          || (filter === 'offline' && !device.online)
+          || filter === connectionStatus
           || (filter === 'sub' && device.subDevice)
         return matchesText && matchesFilter
       })
@@ -623,12 +1014,14 @@
         const card = element('div', 'tuya-device-card')
         const head = element('div', 'tuya-card-head')
         const title = element('div', 'tuya-card-title')
-        title.append(element('h4', '', device.name), element('p', '', device.productName || `Tuya category ${device.category}`))
+        title.append(element('h4', '', device.name), element('p', '', device.productName || `Tuya category ${device.category}`), element('p', 'tuya-mono', `Device ID · ${device.id}`))
         head.append(deviceIcon(), title)
         const badges = element('div', 'tuya-badges')
-        badges.append(badge(device.online ? 'Online' : 'Offline', device.online ? 'success' : 'warning'), badge(device.category || 'unknown', 'primary'))
+        const connectionStatus = device.connection?.status || (device.online ? 'online' : 'offline')
+        badges.append(badge(titleCase(connectionStatus), connectionStatus === 'online' ? 'success' : 'warning'), badge(device.category || 'unknown', 'primary'))
         if (device.subDevice) badges.append(badge('Sub-device'))
-        card.append(head, badges)
+        badges.append(badge(`${(device.schema || []).length} schema`), badge(`${(device.status || []).length} status`))
+        card.append(head, badges, renderDeviceInspector(device))
         root.append(card)
       })
     }
@@ -747,6 +1140,24 @@
       rows.forEach(([label, value]) => root.append(element('dt', '', label), element('dd', '', value)))
     }
 
+    function renderSupportBundle() {
+      const ready = overview.connected === true
+      const homes = overview.homes || []
+      const devices = overview.devices || []
+      byId('tuyaCopySupportBundle').disabled = !ready
+      byId('tuyaDownloadSupportBundle').disabled = !ready
+      const runtimeNote = buildRuntimeSupportSummary(overview.runtimeDiagnostics)
+        ? ' Validated runtime health metadata is included.'
+        : ' No valid runtime health snapshot was found.'
+      setCallout(
+        byId('tuyaSupportBundleStatus'),
+        ready
+          ? `Ready: ${homes.length} home summary item(s) and ${devices.length} pseudonymized device diagnostic(s). No configuration or raw values are included.${runtimeNote}`
+          : 'Refresh a connected QR account to prepare a support bundle.',
+        ready ? 'success' : '',
+      )
+    }
+
     function syncFormsFromConfig() {
       ensureDefaults()
       const value = options()
@@ -764,6 +1175,11 @@
       byId('tuyaWeather').checked = value.generateWeatherAccessory === true
       byId('tuyaWeatherApi').value = value.weatherAPI || 'open-meteo'
       byId('tuyaForceIpv4').checked = value.forceIPv4 === true
+      byId('tuyaCapabilityAutoDetection').checked = value.capabilityAutoDetection === true
+      byId('tuyaEnergyHistoryEnabled').checked = value.energyHistory?.enabled === true
+      byId('tuyaEnergyRetentionDays').value = value.energyHistory?.retentionDays || 30
+      byId('tuyaEnergySampleMinutes').value = value.energyHistory?.sampleIntervalMinutes || 5
+      syncEnergyHistoryControls()
       byId('tuyaDebug').checked = value.debug === true
       byId('tuyaDebugLevel').value = value.debugLevel || ''
     }
@@ -794,6 +1210,11 @@
       value.generateWeatherAccessory = byId('tuyaWeather').checked
       value.weatherAPI = byId('tuyaWeatherApi').value
       value.forceIPv4 = byId('tuyaForceIpv4').checked
+      value.capabilityAutoDetection = byId('tuyaCapabilityAutoDetection').checked
+      value.energyHistory ||= {}
+      value.energyHistory.enabled = byId('tuyaEnergyHistoryEnabled').checked
+      value.energyHistory.retentionDays = Number(byId('tuyaEnergyRetentionDays').value)
+      value.energyHistory.sampleIntervalMinutes = Number(byId('tuyaEnergySampleMinutes').value)
       value.debug = byId('tuyaDebug').checked
       value.debugLevel = byId('tuyaDebugLevel').value.trim() || undefined
     }
@@ -804,6 +1225,14 @@
       if ((value.projectType === '1' || value.projectType === '2') && (!value.accessId || !value.accessKey)) throw new Error('Access ID and Access Secret are required.')
       if (value.projectType === '1' && !value.endpoint) throw new Error('A cloud endpoint is required for a Custom project.')
       if (value.projectType === '2' && (!value.countryCode || !value.username || !value.password)) throw new Error('Country code, app username, and app password are required for a Tuya Developer Cloud project.')
+      if (!Number.isInteger(value.energyHistory?.retentionDays) || value.energyHistory.retentionDays < 1 || value.energyHistory.retentionDays > 365) throw new Error('Energy retention must be a whole number from 1 to 365 days.')
+      if (!Number.isInteger(value.energyHistory?.sampleIntervalMinutes) || value.energyHistory.sampleIntervalMinutes < 1 || value.energyHistory.sampleIntervalMinutes > 1440) throw new Error('Energy sample interval must be a whole number from 1 to 1440 minutes.')
+    }
+
+    function syncEnergyHistoryControls() {
+      const enabled = byId('tuyaEnergyHistoryEnabled').checked
+      byId('tuyaEnergyRetentionDays').disabled = !enabled
+      byId('tuyaEnergySampleMinutes').disabled = !enabled
     }
 
     async function savePlatform(message = 'Configuration saved. Restart Homebridge to apply accessory changes.') {
@@ -957,6 +1386,7 @@
       renderAuthStatus()
       renderHomePicker()
       renderPackageDetails()
+      renderSupportBundle()
       byId('tuyaLastUpdated').textContent = lastUpdatedAt ? `Last checked ${lastUpdatedAt.toLocaleTimeString()}` : 'Authorization has not been checked yet.'
       homebridge.fixScrollHeight()
     }
@@ -983,7 +1413,10 @@
     byId('tuyaSaveAccount').addEventListener('click', () => savePlatform().catch(error => homebridge.toast.error(errorMessage(error), 'Could not save account settings')))
     byId('tuyaSaveHomes').addEventListener('click', () => savePlatform().then(() => refreshAccount(false)).catch(error => homebridge.toast.error(errorMessage(error), 'Could not save home selection')))
     byId('tuyaSaveSettings').addEventListener('click', () => savePlatform().catch(error => homebridge.toast.error(errorMessage(error), 'Could not save settings')))
+    byId('tuyaEnergyHistoryEnabled').addEventListener('change', syncEnergyHistoryControls)
     byId('tuyaToggleSchema').addEventListener('click', toggleSchema)
+    byId('tuyaCopySupportBundle').addEventListener('click', copySupportBundle)
+    byId('tuyaDownloadSupportBundle').addEventListener('click', downloadSupportBundle)
     byId('tuyaDeviceSearch').addEventListener('input', renderDevices)
     byId('tuyaDeviceFilter').addEventListener('change', renderDevices)
     byId('tuyaAppSchema').addEventListener('change', () => {

@@ -14,7 +14,7 @@ const TargetHeaterCoolerState = {
   COOL: 2,
 };
 
-const createHandler = (parent: any, remoteStatus: any[] = []) => {
+const createHandler = (parent: any, remoteStatus: any[] = [], deviceConfig?: any) => {
   const handler = Object.create(IRAirConditionerAccessory.prototype) as any;
   handler.device = {
     id: 'virtual-ac',
@@ -26,11 +26,14 @@ const createHandler = (parent: any, remoteStatus: any[] = []) => {
   };
   handler.deviceManager = {
     getDevice: jest.fn((id: string) => id === 'physical-hub' ? parent : undefined),
+    sendInfraredACCommands: jest.fn(),
   };
   handler.platform = {
+    getDeviceConfig: jest.fn(() => deviceConfig),
     getDeviceSchemaConfig: jest.fn(() => undefined),
   };
   handler.Characteristic = {
+    Active: { ACTIVE: 1, INACTIVE: 0 },
     CurrentHeaterCoolerState,
     TargetHeaterCoolerState,
     RotationSpeed: 'RotationSpeed',
@@ -93,6 +96,57 @@ describe('IRAirConditionerAccessory availability', () => {
 });
 
 describe('IRAirConditionerAccessory HomeKit presentation', () => {
+  test.each([
+    [undefined, 'cool'],
+    ['cool', 'cool'],
+    ['heat', 'heat'],
+    ['auto', 'auto'],
+    ['last', 'last'],
+    ['invalid', 'cool'],
+  ])('uses %s as a %s power-on profile', (configuredMode, expectedProfile) => {
+    const handler = createHandler(undefined, [], {
+      irAirConditionerPowerOnMode: configuredMode,
+    });
+
+    expect(handler.getPowerOnModeProfile()).toBe(expectedProfile);
+  });
+
+  test.each([
+    ['cool', 0],
+    ['heat', 1],
+    ['auto', 2],
+    ['last', 1],
+  ])('resolves the %s power-on profile', (profile, expectedMode) => {
+    const remoteStatus = [
+      { code: 'power', value: 0 },
+      { code: 'mode', value: 4 },
+      { code: 'temp', value: 24 },
+    ];
+    const handler = createHandler(undefined, remoteStatus, {
+      irAirConditionerPowerOnMode: profile,
+    }) as any;
+    handler.device.remote_keys = {
+      key_range: [{ mode: 0 }, { mode: 1 }, { mode: 2 }],
+    };
+    handler.lastClimateMode = 1;
+    handler.getCachedTargetMode = jest.fn(() => undefined);
+
+    expect(handler.getPowerOnMode()).toBe(expectedMode);
+  });
+
+  test.each([
+    ['heat', [{ mode: 0 }, { mode: 2 }], 0],
+    ['cool', [{ mode: 1 }, { mode: 2 }], 1],
+    ['heat', [{ mode: 2 }], 2],
+  ])('falls back from unsupported %s through Cool, Heat, then Auto', (profile, keyRange, expectedMode) => {
+    const handler = createHandler(undefined, [], {
+      irAirConditionerPowerOnMode: profile,
+    }) as any;
+    handler.device.remote_keys = { key_range: keyRange };
+
+    expect(handler.getPowerOnMode()).toBe(expectedMode);
+  });
+
   test('uses HomeKit Cool when powering on with an invalid Tuya mode cache', () => {
     const remoteStatus = [
       { code: 'power', value: 0 },
@@ -152,7 +206,7 @@ describe('IRAirConditionerAccessory HomeKit presentation', () => {
     expect(handler.getActivationMode()).toBe(0);
   });
 
-  test('preserves Auto when it was explicitly selected before powering on', () => {
+  test('uses Cool instead of a remembered Auto mode for a plain power-on', () => {
     const remoteStatus = [
       { code: 'power', value: 0 },
       { code: 'mode', value: 4 },
@@ -170,6 +224,103 @@ describe('IRAirConditionerAccessory HomeKit presentation', () => {
     };
 
     expect(handler.getActivationMode()).toBe(2);
+    expect(handler.getPowerOnMode()).toBe(0);
+  });
+
+  test.each([
+    ['cool', 'Auto then Active', 0, true],
+    ['cool', 'Active then Auto', 0, false],
+    ['heat', 'Auto then Active', 1, true],
+    ['heat', 'Active then Auto', 1, false],
+    ['auto', 'Auto then Active', 2, true],
+    ['auto', 'Active then Auto', 2, false],
+    ['last', 'Auto then Active', 1, true],
+    ['last', 'Active then Auto', 1, false],
+  ])('keeps the %s profile when Apple writes %s', (profile, _name, expectedMode, autoFirst) => {
+    const remoteStatus = [
+      { code: 'power', value: 0 },
+      { code: 'mode', value: 4 },
+      { code: 'temp', value: 25 },
+    ];
+    const handler = createHandler(undefined, remoteStatus, {
+      irAirConditionerPowerOnMode: profile,
+    }) as any;
+    handler.device.remote_keys = {
+      key_range: [{ mode: 0 }, { mode: 1 }, { mode: 2 }],
+    };
+    handler.lastClimateMode = 1;
+    handler.getCachedTargetMode = jest.fn(() => undefined);
+    handler.updateCurrentState = jest.fn();
+    handler.debounceSendACCommands = jest.fn();
+
+    const writeAuto = () => handler.setTargetMode(TargetHeaterCoolerState.AUTO);
+    const writeActive = () => handler.setActive(handler.Characteristic.Active.ACTIVE);
+
+    if (autoFirst) {
+      writeAuto();
+      writeActive();
+    } else {
+      writeActive();
+      writeAuto();
+    }
+
+    expect(handler.getMode()).toBe(expectedMode);
+  });
+
+  test('preserves direct target-mode selection while already active', () => {
+    const remoteStatus = [
+      { code: 'power', value: 1 },
+      { code: 'mode', value: 0 },
+      { code: 'temp', value: 25 },
+    ];
+    const handler = createHandler(undefined, remoteStatus) as any;
+    handler.device.remote_keys = {
+      key_range: [{ mode: 0 }, { mode: 1 }, { mode: 2 }],
+    };
+    handler.updateCurrentState = jest.fn();
+    handler.debounceSendACCommands = jest.fn();
+
+    handler.setTargetMode(TargetHeaterCoolerState.HEAT);
+    expect(handler.getMode()).toBe(1);
+
+    handler.setTargetMode(TargetHeaterCoolerState.AUTO);
+    expect(handler.getMode()).toBe(2);
+  });
+
+  test('suppresses a delayed Apple Auto replay after the IR debounce, then permits an explicit later change', async () => {
+    let now = 10_000;
+    const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => now);
+    const remoteStatus = [
+      { code: 'power', value: 0 },
+      { code: 'mode', value: 2 },
+      { code: 'temp', value: 25 },
+      { code: 'wind', value: 0 },
+    ];
+    const handler = createHandler(undefined, remoteStatus, {
+      irAirConditionerPowerOnMode: 'cool',
+    }) as any;
+    handler.device.remote_keys = {
+      key_range: [{ mode: 0 }, { mode: 1 }, { mode: 2 }],
+    };
+    handler.updateCurrentState = jest.fn();
+    handler.debounceSendACCommands = jest.fn();
+
+    try {
+      handler.setActive(handler.Characteristic.Active.ACTIVE);
+      await handler.sendACCommands();
+      expect(handler.getMode()).toBe(0);
+
+      now += 500;
+      handler.setTargetMode(TargetHeaterCoolerState.AUTO);
+      expect(handler.getMode()).toBe(0);
+      expect(handler.deviceManager.sendInfraredACCommands).toHaveBeenCalledTimes(1);
+
+      now += 2000;
+      handler.setTargetMode(TargetHeaterCoolerState.AUTO);
+      expect(handler.getMode()).toBe(2);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 
   test('reports cooling, heating, idle, and inactive from power, mode, and temperatures', () => {

@@ -8,10 +8,18 @@ const AC_MODE_COOL = 0;
 const AC_MODE_HEAT = 1;
 const AC_MODE_AUTO = 2;
 const TEMPERATURE_TOLERANCE = 0.5;
+const POWER_ON_AUTO_REPLAY_GUARD_MS = 2000;
+
+export type IRAirConditionerPowerOnMode = 'cool' | 'heat' | 'auto' | 'last';
+
+const DEFAULT_POWER_ON_MODE: IRAirConditionerPowerOnMode = 'cool';
+const POWER_ON_MODES: IRAirConditionerPowerOnMode[] = ['cool', 'heat', 'auto', 'last'];
 
 export default class IRAirConditionerAccessory extends BaseAccessory {
 
   private lastClimateMode?: number;
+  private pendingPowerOnMode?: number;
+  private suppressDefaultAutoUntil = 0;
 
   configureServices() {
     this.rememberClimateMode(this.getMode());
@@ -40,13 +48,7 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
         return ([AC_MODE_COOL, AC_MODE_HEAT, AC_MODE_AUTO].includes(this.getMode()) && this.getPower() === POWER_ON) ? ACTIVE : INACTIVE;
       })
       .onSet(async value => {
-        if (value === ACTIVE) {
-          const activationMode = this.getActivationMode();
-          if (activationMode !== this.getMode()) {
-            this.setMode(activationMode);
-          }
-        }
-        this.setPower((value === ACTIVE) ? POWER_ON : POWER_OFF);
+        this.setActive(value);
       });
 
     this.configureCurrentState();
@@ -102,6 +104,27 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
     this.getStatus('power')!.value = value;
     this.updateCurrentState();
     this.debounceSendACCommands();
+  }
+
+  setActive(value) {
+    const { ACTIVE } = this.Characteristic.Active;
+    const isPoweringOn = value === ACTIVE && this.getPower() !== POWER_ON;
+
+    if (isPoweringOn) {
+      const powerOnMode = this.getPowerOnMode();
+      this.pendingPowerOnMode = powerOnMode;
+      this.suppressDefaultAutoUntil = powerOnMode === AC_MODE_AUTO
+        ? 0
+        : Date.now() + POWER_ON_AUTO_REPLAY_GUARD_MS;
+      if (powerOnMode !== this.getMode()) {
+        this.setMode(powerOnMode);
+      }
+    } else if (value !== ACTIVE) {
+      this.pendingPowerOnMode = undefined;
+      this.suppressDefaultAutoUntil = 0;
+    }
+
+    this.setPower((value === ACTIVE) ? POWER_ON : POWER_OFF);
   }
 
   getMode() {
@@ -179,6 +202,73 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
       ?? supportedModes.find(mode => mode === AC_MODE_HEAT)
       ?? supportedModes.find(mode => mode === AC_MODE_AUTO)
       ?? AC_MODE_COOL;
+  }
+
+  getPowerOnModeProfile(): IRAirConditionerPowerOnMode {
+    const configured = this.platform.getDeviceConfig(this.device)?.irAirConditionerPowerOnMode;
+    const configuredMode = typeof configured === 'string'
+      ? configured.trim().toLowerCase()
+      : undefined;
+
+    return POWER_ON_MODES.includes(configuredMode as IRAirConditionerPowerOnMode)
+      ? configuredMode as IRAirConditionerPowerOnMode
+      : DEFAULT_POWER_ON_MODE;
+  }
+
+  getFallbackClimateMode() {
+    const supportedModes = this.getSupportedClimateModes();
+    return supportedModes.find(mode => mode === AC_MODE_COOL)
+      ?? supportedModes.find(mode => mode === AC_MODE_HEAT)
+      ?? supportedModes.find(mode => mode === AC_MODE_AUTO)
+      ?? AC_MODE_COOL;
+  }
+
+  getPowerOnMode() {
+    const profile = this.getPowerOnModeProfile();
+    const requestedMode = profile === 'last'
+      ? this.getActivationMode()
+      : {
+        cool: AC_MODE_COOL,
+        heat: AC_MODE_HEAT,
+        auto: AC_MODE_AUTO,
+      }[profile];
+
+    return this.isSupportedClimateMode(requestedMode)
+      ? requestedMode
+      : this.getFallbackClimateMode();
+  }
+
+  setTargetMode(value) {
+    const mode = this.homeKitToTuyaMode(value);
+    if (!this.isSupportedClimateMode(mode)) {
+      return;
+    }
+
+    // Apple Home can replay its default Auto target alongside a plain Active
+    // write. While inactive, only the Auto profile treats that value as the
+    // requested power-on mode. Last retains the last operating mode.
+    if (mode === AC_MODE_AUTO
+      && this.getPower() !== POWER_ON
+      && this.getPowerOnModeProfile() !== 'auto') {
+      return;
+    }
+
+    // Apple may replay its default Auto target after the 100 ms IR debounce
+    // has already flushed. Keep a short activation guard so that delayed
+    // writes from the same Turn On sequence cannot issue a second Auto IR
+    // command. Explicit target changes work normally after the guard expires.
+    if (mode === AC_MODE_AUTO
+      && ((this.pendingPowerOnMode !== undefined
+        && this.pendingPowerOnMode !== AC_MODE_AUTO)
+        || Date.now() < this.suppressDefaultAutoUntil)) {
+      return;
+    }
+
+    if (mode === AC_MODE_AUTO) {
+      this.suppressDefaultAutoUntil = 0;
+    }
+    this.pendingPowerOnMode = undefined;
+    this.setMode(mode);
   }
 
   getTemp() {
@@ -276,10 +366,7 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
         return this.tuyaToHomeKitMode(this.getActivationMode()) ?? COOL;
       })
       .onSet(async value => {
-        const mode = this.homeKitToTuyaMode(value);
-        if (this.isSupportedClimateMode(mode)) {
-          this.setMode(mode);
-        }
+        this.setTargetMode(value);
       })
       .setProps({ validValues });
   }
@@ -341,6 +428,13 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
   async sendACCommands() {
     const { parent_id, id } = this.device;
     const wind = parseInt((this.getStatus('wind')?.value || '0').toString());
-    await this.deviceManager.sendInfraredACCommands(parent_id!, id, this.getPower(), this.getMode(), this.getTemp(), wind);
+    const mode = this.pendingPowerOnMode ?? this.getMode();
+    if (mode !== this.getMode()) {
+      this.getStatus('mode')!.value = mode;
+      this.rememberClimateMode(mode);
+      this.updateCurrentState();
+    }
+    this.pendingPowerOnMode = undefined;
+    await this.deviceManager.sendInfraredACCommands(parent_id!, id, this.getPower(), mode, this.getTemp(), wind);
   }
 }

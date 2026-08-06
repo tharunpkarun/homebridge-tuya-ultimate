@@ -18,6 +18,23 @@ export interface TuyaPlatformDeviceConfig {
   unbridged?: boolean;
   adaptiveLighting?: boolean;
   garageDoorUseContactSensorForState?: boolean;
+  irAirConditionerPowerOnMode?: 'cool' | 'heat' | 'auto' | 'last';
+  localControl?: TuyaPlatformLocalControlConfig;
+}
+
+export interface TuyaPlatformLocalControlConfig {
+  mode: 'cloud' | 'hybrid' | 'local';
+  ip?: string;
+  localKey: string;
+  protocolVersion?: '3.3';
+  timeoutMs?: number;
+  dpMap: Array<{ code: string; dpId: number }>;
+}
+
+export interface TuyaPlatformEnergyHistoryConfig {
+  enabled?: boolean;
+  retentionDays?: number;
+  sampleIntervalMinutes?: number;
 }
 
 export interface TuyaPlatformServiceInformationConfig {
@@ -37,6 +54,8 @@ export interface TuyaPlatformCustomConfigOptions {
   username: string;
   password: string;
   deviceOverrides?: Array<TuyaPlatformDeviceConfig>;
+  capabilityAutoDetection?: boolean;
+  energyHistory?: TuyaPlatformEnergyHistoryConfig;
   serviceInformationOverrides?: Array<TuyaPlatformServiceInformationConfig>;
   generateWeatherAccessory: boolean;
   weatherAPI: string;
@@ -56,6 +75,8 @@ export interface TuyaPlatformHomeConfigOptions {
   appSchema: string;
   homeWhitelist?: Array<number>;
   deviceOverrides?: Array<TuyaPlatformDeviceConfig>;
+  capabilityAutoDetection?: boolean;
+  energyHistory?: TuyaPlatformEnergyHistoryConfig;
   serviceInformationOverrides?: Array<TuyaPlatformServiceInformationConfig>;
   generateWeatherAccessory: boolean;
   weatherAPI: string;
@@ -79,12 +100,26 @@ export interface TuyaPlatformAccountConfigOptions {
   endpoint?: string;
   homeWhitelist?: Array<string>;
   deviceOverrides?: Array<TuyaPlatformDeviceConfig>;
+  capabilityAutoDetection?: boolean;
+  energyHistory?: TuyaPlatformEnergyHistoryConfig;
   serviceInformationOverrides?: Array<TuyaPlatformServiceInformationConfig>;
   generateWeatherAccessory: boolean;
   weatherAPI: string;
   debug?: boolean;
   debugLevel?: string;
   forceIPv4: boolean;
+  developerCloudFallback?: TuyaDeveloperCloudFallbackConfig;
+}
+
+export interface TuyaDeveloperCloudFallbackConfig {
+  enabled?: boolean;
+  endpoint?: string;
+  accessId: string;
+  accessKey: string;
+  countryCode: number;
+  username: string;
+  password: string;
+  appSchema: string;
 }
 
 export interface RTSPCameraConfig {

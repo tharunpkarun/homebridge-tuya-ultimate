@@ -151,7 +151,7 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
     });
   }
 
-  async sendCommands(deviceID: string, commands: TuyaDeviceStatus[]) {
+  protected async sendCloudCommands(deviceID: string, commands: TuyaDeviceStatus[]) {
     const response = await this.sharingApi.postWithQuery(
       `/v1.1/m/thing/${deviceID}/commands`,
       undefined,

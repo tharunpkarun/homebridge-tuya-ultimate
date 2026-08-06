@@ -13,6 +13,8 @@ import TuyaDevice, {
 } from './TuyaDevice';
 import { RTSPCameraConfig } from '../config';
 import { uuidFromSeed } from '../util/util';
+import TuyaLocalCommandRouter from '../local/TuyaLocalCommandRouter';
+import RuntimeDiagnosticsStore, { CommandAttemptDiagnostic } from '../diagnostics/RuntimeDiagnosticsStore';
 
 enum Events {
   DEVICE_ADD = 'DEVICE_ADD',
@@ -34,6 +36,9 @@ export default class TuyaDeviceManager extends EventEmitter {
   public ownerIDs: string[] = [];
   public devices: TuyaDevice[] = [];
   public log: ExLogger;
+  private localCommandRouter?: TuyaLocalCommandRouter;
+  private productApiFallback?: TuyaDeviceManager;
+  private runtimeDiagnostics?: RuntimeDiagnosticsStore;
 
   constructor(
     public api: TuyaCloudAPI,
@@ -97,6 +102,18 @@ export default class TuyaDeviceManager extends EventEmitter {
 
   getDevice(deviceID: string) {
     return Array.from(this.devices).find(device => device.id === deviceID);
+  }
+
+  setLocalCommandRouter(router: TuyaLocalCommandRouter) {
+    this.localCommandRouter = router;
+  }
+
+  setProductApiFallback(manager: TuyaDeviceManager) {
+    this.productApiFallback = manager;
+  }
+
+  setRuntimeDiagnostics(diagnostics: RuntimeDiagnosticsStore) {
+    this.runtimeDiagnostics = diagnostics;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -172,21 +189,33 @@ export default class TuyaDeviceManager extends EventEmitter {
   }
 
   async getInfraredRemotes(infraredID: string) {
+    if (this.productApiFallback) {
+      return this.productApiFallback.getInfraredRemotes(infraredID);
+    }
     const res = await this.api.get(`/v2.0/infrareds/${infraredID}/remotes`);
     return res;
   }
 
   async getInfraredKeys(infraredID: string, remoteID: string) {
+    if (this.productApiFallback) {
+      return this.productApiFallback.getInfraredKeys(infraredID, remoteID);
+    }
     const res = await this.api.get(`/v2.0/infrareds/${infraredID}/remotes/${remoteID}/keys`);
     return res;
   }
 
   async getInfraredACStatus(infraredID: string, remoteID: string) {
+    if (this.productApiFallback) {
+      return this.productApiFallback.getInfraredACStatus(infraredID, remoteID);
+    }
     const res = await this.api.get(`/v2.0/infrareds/${infraredID}/remotes/${remoteID}/ac/status`);
     return res;
   }
 
   async getInfraredDIYKeys(infraredID: string, remoteID: string) {
+    if (this.productApiFallback) {
+      return this.productApiFallback.getInfraredDIYKeys(infraredID, remoteID);
+    }
     const res = await this.api.get(`/v2.0/infrareds/${infraredID}/remotes/${remoteID}/learning-codes`);
     return res;
   }
@@ -356,6 +385,9 @@ export default class TuyaDeviceManager extends EventEmitter {
   }
 
   async sendInfraredCommands(infraredID: string, remoteID: string, category_id: number, remote_index: number, key: string, key_id: number) {
+    if (this.productApiFallback) {
+      return this.productApiFallback.sendInfraredCommands(infraredID, remoteID, category_id, remote_index, key, key_id);
+    }
     const res = await this.api.post(`/v2.0/infrareds/${infraredID}/remotes/${remoteID}/raw/command`, {
       category_id, remote_index, key, key_id,
     });
@@ -363,6 +395,9 @@ export default class TuyaDeviceManager extends EventEmitter {
   }
 
   async sendInfraredACCommands(infraredID: string, remoteID: string, power: number, mode: number, temp: number, wind: number) {
+    if (this.productApiFallback) {
+      return this.productApiFallback.sendInfraredACCommands(infraredID, remoteID, power, mode, temp, wind);
+    }
     const commands = (power === 1) ? { power, mode, temp, wind } : { power };
     const res = await this.api.post(`/v2.0/infrareds/${infraredID}/air-conditioners/${remoteID}/scenes/command`, commands);
     if (!res.success) {
@@ -372,6 +407,9 @@ export default class TuyaDeviceManager extends EventEmitter {
   }
 
   async sendInfraredDIYCommands(infraredID: string, remoteID: string, code: string) {
+    if (this.productApiFallback) {
+      return this.productApiFallback.sendInfraredDIYCommands(infraredID, remoteID, code);
+    }
     const res = await this.api.post(`/v2.0/infrareds/${infraredID}/remotes/${remoteID}/learning-codes`, { code });
     // const res = await this.api.post(`/v1.0/infrareds/${infraredID}/remotes/${remoteID}/learning-codes`, { code });
     return res;
@@ -379,6 +417,9 @@ export default class TuyaDeviceManager extends EventEmitter {
 
 
   async getLockTemporaryKey(deviceID: string) {
+    if (this.productApiFallback) {
+      return this.productApiFallback.getLockTemporaryKey(deviceID);
+    }
     // const res = await this.api.post(`/v1.0/smart-lock/devices/${deviceID}/door-lock/password-ticket`);
     const res = await this.api.post(`/v1.0/smart-lock/devices/${deviceID}/password-ticket`);
     if (res.success === false) {
@@ -388,6 +429,9 @@ export default class TuyaDeviceManager extends EventEmitter {
   }
 
   async sendLockCommands(deviceID: string, ticketID: string, open: boolean) {
+    if (this.productApiFallback) {
+      return this.productApiFallback.sendLockCommands(deviceID, ticketID, open);
+    }
     const res = await this.api.post(`/v1.0/smart-lock/devices/${deviceID}/password-free/door-operate`, {
       device_id: deviceID,
       ticket_id: ticketID,
@@ -398,8 +442,55 @@ export default class TuyaDeviceManager extends EventEmitter {
 
 
   async sendCommands(deviceID: string, commands: TuyaDeviceStatus[]) {
+    const sendCloud = () => this.sendCloudCommands(deviceID, commands);
+    const device = this.getDevice(deviceID);
+    const observe = (attempt: CommandAttemptDiagnostic) => {
+      this.runtimeDiagnostics?.recordCommand(deviceID, commands.map(command => command.code), attempt);
+    };
+    return device && this.localCommandRouter
+      ? this.localCommandRouter.send(device, commands, sendCloud, observe)
+      : this.sendObservedCloud(sendCloud, observe);
+  }
+
+  private async sendObservedCloud(
+    sendCloud: () => Promise<unknown>,
+    observe: (attempt: CommandAttemptDiagnostic) => void,
+  ) {
+    const startedAt = Date.now();
+    try {
+      const result = await sendCloud();
+      if (result === false) {
+        observe({
+          requestedRoute: 'cloud',
+          attemptedRoute: 'cloud',
+          outcome: 'failure',
+          durationMs: Date.now() - startedAt,
+          error: new Error('Tuya Cloud rejected the command.'),
+        });
+        return result;
+      }
+      observe({
+        requestedRoute: 'cloud',
+        attemptedRoute: 'cloud',
+        outcome: 'success',
+        durationMs: Date.now() - startedAt,
+      });
+      return result;
+    } catch (error) {
+      observe({
+        requestedRoute: 'cloud',
+        attemptedRoute: 'cloud',
+        outcome: 'failure',
+        durationMs: Date.now() - startedAt,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  protected async sendCloudCommands(deviceID: string, commands: TuyaDeviceStatus[]) {
     const res = await this.api.post(`/v1.0/devices/${deviceID}/commands`, { commands });
-    return res.result;
+    return res.success ? res.result : false;
   }
 
   async getCurrentWeather(lat: string, lon: string) {
@@ -424,12 +515,19 @@ export default class TuyaDeviceManager extends EventEmitter {
         return `rtsp://${cameraConfig.username}:${cameraConfig.password}@${rtspUrl.substring('rtsp://'.length)}`;
       }
     }
+    if (this.productApiFallback) {
+      return this.productApiFallback.retrieveDeviceRTSP(device);
+    }
     const data = await this.api.post(`/v1.0/devices/${device.id}/stream/actions/allocate`, { type: 'rtsp' });
     return data.result.url;
   }
 
 
   async onMQTTMessage(topic: string, protocol: TuyaMQTTProtocol, message) {
+    this.runtimeDiagnostics?.recordMqtt(
+      protocol,
+      typeof message?.devId === 'string' ? message.devId : undefined,
+    );
     switch(protocol) {
       case TuyaMQTTProtocol.DEVICE_STATUS_UPDATE: {
         const { devId, status } = message;

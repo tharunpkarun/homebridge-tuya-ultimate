@@ -148,6 +148,69 @@
                             "functionBody": "return model.options.projectType === '2' || model.options.projectType === '3';"
                         }
                     },
+                    "developerCloudFallback": {
+                        "title": "Developer Cloud Product Endpoint Fallback",
+                        "description": "Optional QR-mode fallback for IR, lock, and camera endpoints that Tuya does not grant to the sharing identity.",
+                        "type": "object",
+                        "properties": {
+                            "enabled": { "title": "Enable Fallback", "type": "boolean", "default": false },
+                            "endpoint": { "title": "Endpoint URL", "type": "string", "format": "url" },
+                            "accessId": { "title": "Access ID", "type": "string" },
+                            "accessKey": {
+                                "title": "Access Secret",
+                                "type": "string",
+                                "x-schema-form": { "type": "password" }
+                            },
+                            "countryCode": { "title": "Country Code", "type": "integer", "minimum": 1 },
+                            "username": { "title": "App Username", "type": "string" },
+                            "password": {
+                                "title": "App Password",
+                                "type": "string",
+                                "x-schema-form": { "type": "password" }
+                            },
+                            "appSchema": {
+                                "title": "App",
+                                "type": "string",
+                                "default": "tuyaSmart",
+                                "enum": ["tuyaSmart", "smartlife"]
+                            }
+                        },
+                        "condition": {
+                            "functionBody": "return model.options.projectType === '3';"
+                        }
+                    },
+                    "capabilityAutoDetection": {
+                        "title": "Capability-based Device Detection",
+                        "description": "Conservatively map otherwise unsupported devices from standard Tuya datapoints. Explicit device overrides still take precedence.",
+                        "type": "boolean",
+                        "default": false
+                    },
+                    "energyHistory": {
+                        "title": "Energy History",
+                        "description": "Persist allowlisted power, current, voltage, and energy datapoints locally for diagnostics and charts.",
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "title": "Enable Energy History",
+                                "type": "boolean",
+                                "default": false
+                            },
+                            "retentionDays": {
+                                "title": "Retention (days)",
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 365,
+                                "default": 30
+                            },
+                            "sampleIntervalMinutes": {
+                                "title": "Sample Interval (minutes)",
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 1440,
+                                "default": 5
+                            }
+                        }
+                    },
                     "deviceOverrides": {
                         "title": "Device Overriding Configs",
                         "type": "array",
@@ -182,6 +245,73 @@
                                     "type": "boolean",
                                     "condition": {
                                         "functionBody": "return (model.options && model.options.deviceOverrides && model.options.deviceOverrides[arrayIndices[0]].category === 'ckmkzq');"
+                                    }
+                                },
+                                "irAirConditionerPowerOnMode": {
+                                    "title": "IR AC Power-On Mode",
+                                    "description": "Mode used when Apple Home sends a plain Turn On command to an IR air conditioner.",
+                                    "type": "string",
+                                    "default": "cool",
+                                    "oneOf": [
+                                        { "title": "Cool", "enum": ["cool"] },
+                                        { "title": "Heat", "enum": ["heat"] },
+                                        { "title": "Auto", "enum": ["auto"] },
+                                        { "title": "Last Mode", "enum": ["last"] }
+                                    ],
+                                    "condition": {
+                                        "functionBody": "return (model.options && model.options.deviceOverrides);"
+                                    }
+                                },
+                                "localControl": {
+                                    "title": "Local LAN Control",
+                                    "description": "Optional Tuya protocol 3.3 control. Hybrid mode falls back to Tuya Cloud when LAN control fails.",
+                                    "type": "object",
+                                    "properties": {
+                                        "mode": {
+                                            "title": "Command Route",
+                                            "type": "string",
+                                            "default": "cloud",
+                                            "oneOf": [
+                                                { "title": "Cloud", "enum": ["cloud"] },
+                                                { "title": "Local with Cloud Fallback", "enum": ["hybrid"] },
+                                                { "title": "Local Only", "enum": ["local"] }
+                                            ]
+                                        },
+                                        "ip": {
+                                            "title": "Local IP Address",
+                                            "type": "string"
+                                        },
+                                        "localKey": {
+                                            "title": "Local Key",
+                                            "description": "Exactly 16 bytes. This secret is never written to logs.",
+                                            "type": "string",
+                                            "x-schema-form": { "type": "password" }
+                                        },
+                                        "protocolVersion": {
+                                            "title": "LAN Protocol",
+                                            "type": "string",
+                                            "default": "3.3",
+                                            "enum": ["3.3"]
+                                        },
+                                        "timeoutMs": {
+                                            "title": "LAN Timeout (milliseconds)",
+                                            "type": "integer",
+                                            "minimum": 250,
+                                            "maximum": 30000,
+                                            "default": 3000
+                                        },
+                                        "dpMap": {
+                                            "title": "Datapoint Mapping",
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "required": ["code", "dpId"],
+                                                "properties": {
+                                                    "code": { "title": "Schema Code", "type": "string" },
+                                                    "dpId": { "title": "DP ID", "type": "integer", "minimum": 1 }
+                                                }
+                                            }
+                                        }
                                     }
                                 },
                                 "schema": {
@@ -452,7 +582,20 @@
                 "options.appSchema",
                 "options.userCode",
                 "options.clientId",
-                "options.qrSchema"
+                "options.qrSchema",
+                {
+                    "key": "options.developerCloudFallback",
+                    "items": [
+                        "options.developerCloudFallback.enabled",
+                        "options.developerCloudFallback.endpoint",
+                        "options.developerCloudFallback.accessId",
+                        "options.developerCloudFallback.accessKey",
+                        "options.developerCloudFallback.countryCode",
+                        "options.developerCloudFallback.username",
+                        "options.developerCloudFallback.password",
+                        "options.developerCloudFallback.appSchema"
+                    ]
+                }
             ]
         },
         {
@@ -494,6 +637,17 @@
             "notitle": false,
             "items": [
                 {
+                    "key": "options.capabilityAutoDetection"
+                },
+                {
+                    "key": "options.energyHistory",
+                    "items": [
+                        "options.energyHistory.enabled",
+                        "options.energyHistory.retentionDays",
+                        "options.energyHistory.sampleIntervalMinutes"
+                    ]
+                },
+                {
                     "key": "options.deviceOverrides",
                     "add": "Add Another Device Override",
                     "title": "{{ 'New Device Override' }}",
@@ -518,6 +672,28 @@
                                 },
                                 {
                                     "key": "options.deviceOverrides[].garageDoorUseContactSensorForState"
+                                },
+                                {
+                                    "key": "options.deviceOverrides[].irAirConditionerPowerOnMode"
+                                },
+                                {
+                                    "key": "options.deviceOverrides[].localControl",
+                                    "items": [
+                                        "options.deviceOverrides[].localControl.mode",
+                                        "options.deviceOverrides[].localControl.ip",
+                                        "options.deviceOverrides[].localControl.localKey",
+                                        "options.deviceOverrides[].localControl.protocolVersion",
+                                        "options.deviceOverrides[].localControl.timeoutMs",
+                                        {
+                                            "key": "options.deviceOverrides[].localControl.dpMap",
+                                            "add": "Add DP Mapping",
+                                            "type": "tabarray",
+                                            "items": [
+                                                "options.deviceOverrides[].localControl.dpMap[].code",
+                                                "options.deviceOverrides[].localControl.dpMap[].dpId"
+                                            ]
+                                        }
+                                    ]
                                 },
                                 {
                                     "key": "options.deviceOverrides[].schema",

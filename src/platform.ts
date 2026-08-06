@@ -23,6 +23,10 @@ import {
   sharingCredentialFile,
   TuyaSharingCredentialStore,
 } from './core/TuyaSharingAuth';
+import EnergyHistoryStore from './energy/EnergyHistoryStore';
+import TuyaLocalCommandRouter from './local/TuyaLocalCommandRouter';
+import AccessoryBackupStore from './migration/AccessoryBackupStore';
+import RuntimeDiagnosticsStore from './diagnostics/RuntimeDiagnosticsStore';
 
 
 /**
@@ -41,6 +45,8 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
 
   public deviceManager?: TuyaDeviceManager;
   public accessoryHandlers: BaseAccessory[] = [];
+  public energyHistory?: EnergyHistoryStore;
+  public runtimeDiagnostics?: RuntimeDiagnosticsStore;
 
   validate() {
     let result;
@@ -140,6 +146,14 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       // run the method to discover / register your devices as accessories
       await this.initDevices();
     });
+    this.api.on('shutdown', async () => {
+      this.deviceManager?.mq.stop();
+      const writes = [
+        this.energyHistory?.flush(),
+        this.runtimeDiagnostics?.flush(),
+      ].filter((write): write is Promise<void> => write !== undefined);
+      await Promise.allSettled(writes);
+    });
   }
 
   /**
@@ -172,6 +186,25 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
 
     if (!devices || !this.deviceManager) {
       return;
+    }
+
+    this.runtimeDiagnostics = new RuntimeDiagnosticsStore(
+      path.join(this.api.user.persistPath(), 'TuyaRuntimeDiagnostics.json'),
+    );
+    this.deviceManager.setRuntimeDiagnostics(this.runtimeDiagnostics);
+    this.deviceManager.setLocalCommandRouter(new TuyaLocalCommandRouter(
+      device => this.getDeviceConfig(device)?.localControl,
+      (message, ...args) => this.log.warn(message, ...args),
+    ));
+
+    if (this.options.energyHistory?.enabled) {
+      this.energyHistory = new EnergyHistoryStore(
+        path.join(this.api.user.persistPath(), 'TuyaEnergyHistory.json'),
+        this.options.energyHistory,
+      );
+      for (const device of devices) {
+        this.energyHistory.record(device);
+      }
     }
 
     // Infrared hubs must still have their original Tuya category while their
@@ -219,6 +252,14 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
         const device = this.deviceManager!.createRTSPCameraDevice(cconfig);
         this.addAccessory(device);
       });
+
+    // Back up the minimal identity/service layout before removing stale cache
+    // entries so migrations remain auditable and recoverable by tooling.
+    if (this.cachedAccessories.length > 0) {
+      const backupStore = new AccessoryBackupStore(this.api.user.persistPath());
+      const backupFile = await backupStore.backup(this.cachedAccessories, 'stale-accessory-cleanup');
+      this.log.info('Saved stale accessory backup at %s', backupFile);
+    }
 
     // remove unused accessories
     for (const cachedAccessory of this.cachedAccessories) {
@@ -480,8 +521,8 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       return undefined;
     }
 
-    const debugMode = options.debug
-      && ((options.debugLevel ?? '').length > 0 ? options.debugLevel?.includes('api') : true);
+    const debugMode = options.debug === true
+      && ((options.debugLevel ?? '').length === 0 || options.debugLevel!.includes('api'));
     const api = new TuyaSharingAPI({
       credentials,
       onTokenUpdate: async token => {
@@ -490,6 +531,7 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       },
     });
     const deviceManager = new TuyaSharingDeviceManager(api, debugMode);
+    await this.configureDeveloperCloudFallback(deviceManager, debugMode);
 
     this.log.info('Fetching Tuya account home list.');
     const homeResponse = await deviceManager.getHomeList();
@@ -522,6 +564,62 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       }
     }
     return devices;
+  }
+
+  private async configureDeveloperCloudFallback(primary: TuyaDeviceManager, debugMode: boolean) {
+    if (this.options.projectType !== '3') {
+      return;
+    }
+    const fallback = this.options.developerCloudFallback;
+    if (!fallback?.enabled) {
+      return;
+    }
+
+    const requiredValues = [
+      fallback.accessId,
+      fallback.accessKey,
+      fallback.username,
+      fallback.password,
+      fallback.appSchema,
+    ];
+    if (!requiredValues.every(value => typeof value === 'string' && value.trim().length > 0)
+      || !Number.isInteger(fallback.countryCode) || fallback.countryCode < 1) {
+      this.log.warn('Developer Cloud product-endpoint fallback is enabled but its credentials are incomplete.');
+      return;
+    }
+
+    try {
+      const api = new TuyaOpenAPI(
+        fallback.endpoint || TuyaOpenAPI.getDefaultEndpoint(fallback.countryCode),
+        fallback.accessId,
+        fallback.accessKey,
+        'en',
+        debugMode,
+        this.options.forceIPv4,
+        1,
+        10_000,
+      );
+      const response = await api.homeLogin(
+        fallback.countryCode,
+        fallback.username,
+        fallback.password,
+        fallback.appSchema,
+      );
+      if (!response.success) {
+        this.log.warn(
+          'Developer Cloud product-endpoint fallback login failed. code=%s, msg=%s',
+          response.code,
+          response.msg,
+        );
+        return;
+      }
+      primary.setProductApiFallback(new TuyaHomeDeviceManager(api, debugMode));
+      this.log.info('Developer Cloud product-endpoint fallback is active for IR, locks, and cameras.');
+    } catch {
+      // This integration is supplemental; QR inventory and live updates must
+      // remain available if its endpoint or credentials are temporarily bad.
+      this.log.warn('Developer Cloud product-endpoint fallback could not be initialized.');
+    }
   }
 
   addAccessory(device: TuyaDevice) {
@@ -586,6 +684,7 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
   }
 
   updateAccessoryStatus(device: TuyaDevice, status: TuyaDeviceStatus[]) {
+    this.energyHistory?.record(device, status);
     const handler = this.getAccessoryHandler(device.id);
     if (!handler) {
       return;

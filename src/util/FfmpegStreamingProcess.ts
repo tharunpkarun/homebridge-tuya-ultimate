@@ -44,7 +44,9 @@ export class FfmpegStreamingProcess {
     callback?: StreamRequestCallback,
   ) {
 
-    log.debug(`Stream command: ${videoProcessor} ${ffmpegArgs.map(value => JSON.stringify(value)).join(' ')}`);
+    // ffmpegArgs contains the RTSP input URL and may therefore contain camera
+    // credentials. Never write the assembled command line to Homebridge logs.
+    log.debug('Starting FFmpeg live-stream process.');
 
     let started = false;
     const startTime = Date.now();
@@ -80,7 +82,9 @@ export class FfmpegStreamingProcess {
         callback = undefined;
       }
       if (line.match(/\[(panic|fatal|error)\]/)) {
-        log.error(line);
+        // FFmpeg commonly repeats its input URL in diagnostics. Keep the
+        // signal useful without copying possible RTSP credentials.
+        log.error('FFmpeg reported a live-stream error.');
       }
     });
     this.process.on('error', (error: Error) => {
