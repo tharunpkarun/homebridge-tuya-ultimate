@@ -110,7 +110,8 @@ class BaseAccessory {
   }
 
   configureStatusActive() {
-    if (this.device.parent_id && this.device.isIRRemoteControl()) {
+    if ((this.device.parent_id || this.device.infrared_ac_command_mode === 'device-sharing')
+      && this.device.isIRRemoteControl()) {
       for (const service of this.accessory.services) {
         if (service.testCharacteristic(this.Characteristic.StatusActive)) {
           service.removeCharacteristic(service.getCharacteristic(this.Characteristic.StatusActive));

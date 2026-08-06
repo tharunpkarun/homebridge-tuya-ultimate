@@ -46,6 +46,7 @@ const createHandler = (parent: any, remoteStatus: any[] = [], deviceConfig?: any
   };
   handler.Service = {
     HeaterCooler: 'HeaterCooler',
+    HumiditySensor: 'HumiditySensor',
     HumidifierDehumidifier: 'HumidifierDehumidifier',
     Fanv2: 'Fanv2',
   };
@@ -75,6 +76,43 @@ describe('IRAirConditionerAccessory ambient sensors', () => {
     expect(handler.getAmbientTemperature()).toBe(25);
     expect(handler.getAmbientHumidity()).toBe(0);
   });
+
+  test('removes the humidity service for a parentless QR sharing IR AC', () => {
+    const handler = createHandler(undefined) as any;
+    handler.device.parent_id = undefined;
+    handler.device.infrared_ac_command_mode = 'device-sharing';
+    const humidity = {};
+    handler.accessory = {
+      getService: jest.fn(() => humidity),
+      removeService: jest.fn(),
+      addService: jest.fn(),
+    };
+
+    handler.configureAmbientHumidity();
+
+    expect(handler.accessory.removeService).toHaveBeenCalledWith(humidity);
+    expect(handler.accessory.addService).not.toHaveBeenCalled();
+  });
+
+  test('preserves the humidity service for a product-backed IR AC when the initial value is unavailable', () => {
+    const handler = createHandler({ status: [], schema: [] }) as any;
+    const onGet = jest.fn();
+    const humidity = {
+      getCharacteristic: jest.fn(() => ({ onGet })),
+    };
+    handler.Characteristic.CurrentRelativeHumidity = 'CurrentRelativeHumidity';
+    handler.accessory = {
+      getService: jest.fn(() => humidity),
+      removeService: jest.fn(),
+      addService: jest.fn(),
+    };
+
+    handler.configureAmbientHumidity();
+
+    expect(handler.accessory.removeService).not.toHaveBeenCalled();
+    expect(humidity.getCharacteristic).toHaveBeenCalledWith('CurrentRelativeHumidity');
+    expect(onGet).toHaveBeenCalledWith(expect.any(Function));
+  });
 });
 
 describe('IRAirConditionerAccessory availability', () => {
@@ -98,6 +136,24 @@ describe('IRAirConditionerAccessory availability', () => {
 
     expect(heaterCooler.removeCharacteristic).toHaveBeenCalledWith(statusActive);
     expect(humidity.removeCharacteristic).toHaveBeenCalledWith(statusActive);
+  });
+
+  test('removes cached StatusActive for a parentless QR sharing IR AC', () => {
+    const handler = createHandler(undefined) as any;
+    handler.device.parent_id = undefined;
+    handler.device.infrared_ac_command_mode = 'device-sharing';
+    const statusActive = { UUID: 'status-active' };
+    const heaterCooler = {
+      testCharacteristic: jest.fn(() => true),
+      getCharacteristic: jest.fn(() => statusActive),
+      removeCharacteristic: jest.fn(),
+    };
+    handler.Characteristic.StatusActive = 'StatusActive';
+    handler.accessory = { services: [heaterCooler] };
+
+    handler.configureStatusActive();
+
+    expect(heaterCooler.removeCharacteristic).toHaveBeenCalledWith(statusActive);
   });
 });
 

@@ -363,6 +363,13 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
   }
 
   configureAmbientHumidity() {
+    if (!this.device.parent_id && this.device.infrared_ac_command_mode === 'device-sharing') {
+      const service = this.accessory.getService(this.Service.HumiditySensor);
+      if (service) {
+        this.accessory.removeService(service);
+      }
+      return;
+    }
     const service = this.accessory.getService(this.Service.HumiditySensor)
       || this.accessory.addService(this.Service.HumiditySensor, this.accessory.displayName + ' Humidity');
     service.getCharacteristic(this.Characteristic.CurrentRelativeHumidity)

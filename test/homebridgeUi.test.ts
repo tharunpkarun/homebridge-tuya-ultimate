@@ -438,12 +438,12 @@ describe('Homebridge custom UI', () => {
     const document = dom.window.document;
     expect(document.getElementById('tuyaAuthorizationStat')?.textContent).toBe('Configured · QR stored');
     expect(document.getElementById('tuyaDashboardMessage')?.textContent).toContain('stored Smart Life QR authorization is also available');
-    expect(document.getElementById('tuyaDashboardMessage')?.textContent).toContain('IR AC/remotes');
+    expect(document.getElementById('tuyaDashboardMessage')?.textContent).toContain('full IR remote support');
 
     (document.querySelector('[data-tuya-tab="account"]') as HTMLButtonElement).click();
     expect(document.getElementById('tuyaStoredQrRecovery')?.hidden).toBe(false);
     expect(document.getElementById('tuyaStoredQrRecoveryMessage')?.textContent).toContain('Stored account');
-    expect(document.getElementById('tuyaUseStoredQr')?.textContent).toContain('no IR remotes');
+    expect(document.getElementById('tuyaUseStoredQr')?.textContent).toBe('Use QR authorization');
 
     (document.getElementById('tuyaUseStoredQr') as HTMLButtonElement).click();
     await new Promise(resolve => setTimeout(resolve, 0));

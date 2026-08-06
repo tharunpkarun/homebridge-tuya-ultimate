@@ -150,6 +150,10 @@ export default class TuyaDeviceManager extends EventEmitter {
     this.productApiFallback = manager;
   }
 
+  protected hasProductApiFallback() {
+    return this.productApiFallback !== undefined;
+  }
+
   setRuntimeDiagnostics(diagnostics: RuntimeDiagnosticsStore) {
     this.runtimeDiagnostics = diagnostics;
   }
@@ -416,7 +420,7 @@ export default class TuyaDeviceManager extends EventEmitter {
 
   private isResolvedInfraredAC(device: TuyaDevice) {
     return Boolean(
-      device.parent_id
+      (device.parent_id || device.infrared_ac_command_mode === 'device-sharing')
       && device.isIRRemoteControl()
       && IR_AC_REQUIRED_STATUS_CODES.every(code => device.status.some(status => status.code === code)),
     );
@@ -804,6 +808,7 @@ export default class TuyaDeviceManager extends EventEmitter {
             continue;
           }
           subDevice.status = Object.entries(res.result).map(([key, value]) => ({code: key, value} as TuyaDeviceStatus));
+          subDevice.infrared_ac_product_api_resolved = true;
         } else if (category_id === 999) { // DIY Device
           const res = await this.getInfraredDIYKeys(irDevice.id, subDevice.id);
           if (!res.success) {

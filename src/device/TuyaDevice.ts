@@ -99,6 +99,8 @@ export type TuyaIRRemoteKeys = {
   key_range: TuyaIRRemoteKeyRangeItem[];
 };
 
+export type TuyaInfraredACCommandMode = 'device-sharing';
+
 export default class TuyaDevice {
 
   // device
@@ -135,6 +137,8 @@ export default class TuyaDevice {
   sub!: boolean;
   parent_id?: string;
   remote_keys?: TuyaIRRemoteKeys;
+  infrared_ac_command_mode?: TuyaInfraredACCommandMode;
+  infrared_ac_product_api_resolved?: boolean;
   support_local?: boolean;
   local_strategy?: Record<number, TuyaSharingLocalStrategy>;
   node_id?: string;

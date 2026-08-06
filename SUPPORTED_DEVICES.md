@@ -192,7 +192,7 @@ The `zndb` service is deliberately non-commanding. It exposes known numeric curr
 | TV | 电视 | infrared_tv | Switch | ✅ | [Documentation](https://developer.tuya.com/en/docs/cloud/infrared-common-apis?id=Kb3oe2o7z0so9) |
 | STB | 机顶盒 | infrared_stb | Switch | ✅ | [Documentation](https://developer.tuya.com/en/docs/cloud/infrared-common-apis?id=Kb3oe2o7z0so9) |
 | TV Box | 电视盒子 | infrared_box | Switch | ✅ | [Documentation](https://developer.tuya.com/en/docs/cloud/infrared-common-apis?id=Kb3oe2o7z0so9) |
-| Air Conditioner | 空调 | infrared_ac | Heater Cooler<br> Humidifier Dehumidifier<br> Fanv2 | ✅ | [Documentation](https://developer.tuya.com/en/docs/cloud/infrared-air-conditioner-apis?id=Kb3oe9ehg02fn) |
+| Air Conditioner | 空调 | infrared_ac | Heater Cooler<br>Humidity Sensor when exposed by the hub | ✅ (Developer Cloud or compatible QR sharing schema) | [Documentation](https://developer.tuya.com/en/docs/cloud/infrared-air-conditioner-apis?id=Kb3oe9ehg02fn) |
 | Fan | 电风扇 | infrared_fan | Switch | ✅ | [Documentation](https://developer.tuya.com/en/docs/cloud/infrared-common-apis?id=Kb3oe2o7z0so9) |
 | Light | 灯 | infrared_light | Switch | ✅ | [Documentation](https://developer.tuya.com/en/docs/cloud/infrared-common-apis?id=Kb3oe2o7z0so9) |
 | Amplifier | 音响 | infrared_amplifier | Switch | ✅ | [Documentation](https://developer.tuya.com/en/docs/cloud/infrared-common-apis?id=Kb3oe2o7z0so9) |

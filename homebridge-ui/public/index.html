@@ -348,7 +348,7 @@
           <span id="tuyaAccountBadge" class="tuya-badge tuya-badge-warning">Not connected</span>
         </div>
         <div class="tuya-callout tuya-callout-warning tuya-mb-12">
-          <strong>Infrared remotes require Tuya Developer Cloud.</strong> Tuya's QR account API currently rejects the IR metadata and command endpoints. In QR mode, unresolved IR AC thermostats and remotes are omitted instead of appearing as broken accessories.
+          <strong>QR infrared support depends on the remote.</strong> Compatible IR air conditioners can use their normal sharing command schema. Other remotes still require Tuya Developer Cloud and are omitted when their product-specific IR endpoints are unavailable.
         </div>
         <div class="tuya-callout tuya-callout-warning tuya-mb-12">
           <strong>Home Assistant compatibility identity:</strong> this plugin uses Home Assistant's public Tuya identity. Authorizing the same Tuya account can replace Home Assistant's session. The reliable coexistence setup is a second app account shared into the same Tuya Home.
@@ -1031,7 +1031,7 @@
       if (options().projectType !== '3') {
         const candidate = storedQrCandidate()
         if (candidate) {
-          setCallout(message, `Tuya Developer Cloud is active, and stored ${appLabel(candidate.appSchema)} QR authorization is also available. Keep Developer Cloud for IR AC/remotes because Tuya's QR API does not expose their metadata or control.`, 'warning')
+          setCallout(message, `Tuya Developer Cloud is active, and stored ${appLabel(candidate.appSchema)} QR authorization is also available. Developer Cloud retains full IR remote support; QR mode can expose compatible IR air conditioners that publish a normal sharing command schema.`, 'warning')
           byId('tuyaDashboardAction').textContent = 'Review connection'
           return
         }
@@ -1077,8 +1077,8 @@
       notice.hidden = !candidate
       if (!candidate) return
       byId('tuyaStoredQrRecoveryTitle').textContent = `Stored ${appLabel(candidate.appSchema)} QR authorization found`
-      byId('tuyaStoredQrRecoveryMessage').textContent = `${candidate.username ? `Account ${candidate.username} is` : 'This account is'} already authorized. Switching to it does not require another scan, but Tuya's QR API cannot expose or control IR AC/remotes.`
-      byId('tuyaUseStoredQr').textContent = 'Use QR authorization (no IR remotes)'
+      byId('tuyaStoredQrRecoveryMessage').textContent = `${candidate.username ? `Account ${candidate.username} is` : 'This account is'} already authorized. Switching to it does not require another scan. Compatible IR air conditioners can use QR sharing commands; other IR remotes still need Tuya Developer Cloud.`
+      byId('tuyaUseStoredQr').textContent = 'Use QR authorization'
     }
 
     function renderAuthStatus() {

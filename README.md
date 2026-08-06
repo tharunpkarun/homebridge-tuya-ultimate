@@ -113,7 +113,7 @@ Both accounts then reach the same devices, while each integration owns a differe
 | Automatic token renewal | ✅ | Refreshes and atomically persists account credentials |
 | Tap-to-Run scenes | ✅ | Enabled scenes appear as HomeKit switches |
 | Raw datapoint conversion | ✅ | Includes Tuya's official boolean, enum, range, light, timer, lock, vacuum, and meter conversion strategies |
-| IR air-conditioner climate telemetry | 🟡 | Includes a configurable plain-power-on mode; product endpoints require Developer Cloud access |
+| IR air-conditioner climate control | 🟡 | Compatible QR schemas expose sharing commands; exact key tables, cloud-shadow polling, and hub telemetry use Developer Cloud |
 | Home whitelist | ✅ | Include only selected Tuya Home IDs |
 | Device and schema overrides | ✅ | Rename datapoints, correct types/ranges, transform values, hide devices, or change categories |
 | Conservative capability detection | 🟡 | Optional fallback for otherwise unsupported categories that already expose recognized standard datapoints |
@@ -152,7 +152,7 @@ At startup, the plugin:
 3. Fetches homes, devices, device specifications, report strategies, and scenes.
 4. Converts each Tuya device into the existing internal device model.
 5. Optionally signs in to a secondary Developer Cloud project for product-specific IR, lock, and camera endpoints.
-6. Resolves IR remotes, their parent hubs, supported modes, current state, and command metadata.
+6. Resolves product-backed IR remotes and builds thermostat command profiles for compatible QR IR air conditioners.
 7. Applies overrides in device, product, then global order.
 8. Creates or restores stable HomeKit accessories using the Tuya device ID.
 9. Backs up any stale cached accessory layouts before unregistering them.
@@ -275,9 +275,11 @@ The inherited accessory mappings cover Tuya IR hubs, learned remotes, generic re
 
 The plugin resolves each virtual IR remote against its physical hub before applying `deviceOverrides`. You can therefore hide the physical hub from Apple Home while retaining the remote's parent identity, mode table, current state, sensor readings, and command endpoint. Set `irAirConditionerPowerOnMode` on that device's override to choose what a plain Apple Home **Turn On** request means: `cool` (the default), `heat`, `auto`, or `last`. If the selected mode is unavailable on that remote, the handler chooses a supported climate mode instead.
 
-Changes made to the virtual IR air conditioner in Smart Life or Tuya Smart are reconciled when Apple Home reads its climate characteristics and after relevant Tuya cloud reports. Status reads are coalesced and return cached state after a short wait if Tuya is slow; opening the climate accessory also starts a short, bounded polling window, while report-triggered failures retry with backoff for up to one minute. A status read never transmits IR, so it does not make the AC beep. This is still Tuya's remembered virtual-remote state: changes made directly on the physical AC or with another one-way remote cannot be detected.
+When Developer Cloud product endpoints are available, changes made to the virtual IR air conditioner in Smart Life or Tuya Smart are reconciled when Apple Home reads its climate characteristics and after relevant Tuya cloud reports. Status reads are coalesced and return cached state after a short wait if Tuya is slow; opening the climate accessory also starts a short, bounded polling window, while report-triggered failures retry with backoff for up to one minute. A status read never transmits IR, so it does not make the AC beep. QR-only sharing remotes instead keep optimistic state unless Tuya publishes a matching report. Neither path can detect changes made directly on the physical AC or with another one-way remote.
 
-These handlers use product-specific IR cloud endpoints that Tuya commonly rejects for the QR account-sharing identity. By default, QR mode omits unresolved IR accessories instead of publishing a nonfunctional thermostat with a `0 °C` placeholder. Advanced QR installations can configure `developerCloudFallback` with a separately authorized Tuya Developer Cloud project. Discovery, MQTT state, and normal commands remain on the QR connection; only IR metadata/commands, lock operations, and camera RTSP allocation use the secondary manager. This is not a fallback for general cloud availability.
+Compatible QR-authorized IR air conditioners can use Tuya's normal device-sharing functions when their specification exposes `PowerOn`, `PowerOff`, mode (`M`), temperature (`T`), and optionally fan (`F`). The plugin builds the HomeKit mode and temperature ranges from that specification and sends commands through the same QR connection. Because IR is one-way and this QR surface can begin with an empty cloud shadow, the initial state is conservatively Off, Cool, 25 °C, and fan Auto until HomeKit sends a command or Tuya publishes a matching report.
+
+Other QR IR remotes are omitted when their normal sharing schema is insufficient, rather than publishing a nonfunctional accessory. Advanced QR installations can configure `developerCloudFallback` with a separately authorized Tuya Developer Cloud project. The richer product endpoints remain preferred when that fallback resolves an IR remote, including its exact key table, remembered state, and physical-hub sensor readings. The secondary manager also covers lock operations and camera RTSP allocation; it is not a fallback for general cloud availability.
 
 ### Conservative capability detection
 
