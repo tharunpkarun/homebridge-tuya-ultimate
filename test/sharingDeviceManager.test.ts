@@ -342,7 +342,7 @@ describe('Tuya account-sharing device manager', () => {
       throw new Error(`Unexpected path: ${path}`);
     });
     const postWithQuery = jest.fn().mockImplementation(async (path: string) => path.includes('/ir-ac/')
-      ? { success: false as const, result: undefined, code: 1109, msg: '1109', t: 1, tid: 'test' }
+      ? { success: false as const, result: undefined, code: '1109', msg: '1109', t: 1, tid: 'test' }
       : success(true));
     const api = {
       tokenInfo: { access_token: '', refresh_token: '', uid: 'user-1', expire: Number.MAX_SAFE_INTEGER },

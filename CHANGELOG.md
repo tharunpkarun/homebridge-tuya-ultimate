@@ -9,7 +9,7 @@
 ### Fixed
  - Build safe mode, temperature, fan, and optimistic one-way status metadata for QR IR air conditioners while preserving the richer Developer Cloud IR path when configured.
  - Recover QR virtual IR command schemas embedded in Tuya's device-inventory `mapping` field when the separate specifications endpoint returns no schema or status data, including compatible air conditioners and static buttons on known IR remote categories.
- - Retry Tuya error `1109` from compatible virtual IR air conditioners through the physical MOES-style IR thermostat datapoints exposed by the QR account API, including inventories that omit the child-to-parent link or hide DP metadata.
+ - Retry Tuya error `1109` from compatible virtual IR air conditioners through the physical MOES-style IR thermostat datapoints exposed by the QR account API, accepting Tuya's string-form error code and inventories that omit the child-to-parent link or hide DP metadata.
  - Initialize IR thermostat heating and cooling thresholds inside their advertised range before narrowing HomeKit's characteristic constraints.
  - Show an initial Config UI loader while stored authorization, homes, and devices are being discovered instead of briefly presenting a false disconnected state.
 

@@ -259,7 +259,7 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       undefined,
       { commands },
     );
-    if (response.success || response.code !== 1109) {
+    if (response.success || String(response.code) !== '1109') {
       if (!response.success) {
         this.log.info('Send QR-authorized IR AC command failed. code = %s, msg = %s', response.code, response.msg);
       }
