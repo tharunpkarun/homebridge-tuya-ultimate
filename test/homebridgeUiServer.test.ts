@@ -8,7 +8,7 @@ jest.mock('@homebridge/plugin-ui-utils', () => ({
 // The Homebridge custom UI server is JavaScript because it runs as a separate process.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { createHandlers, credentialFile, sanitizeDevice } = require('../homebridge-ui/server.js');
-import { legacySharingCredentialFile } from '../src/core/TuyaSharingAuth';
+import { DEFAULT_LOGIN_ENDPOINT, legacySharingCredentialFile } from '../src/core/TuyaSharingAuth';
 
 const credentials = {
   client_id: 'client-1',
@@ -230,6 +230,40 @@ describe('Homebridge custom UI server', () => {
       appSchema: 'smartlife',
     })).resolves.toMatchObject({ state: 'success', username: 'Test account' });
     expect(MockCredentialStore.values.get(credentialFile(storagePath, 'user-1'))).toEqual(credentials);
+  });
+
+  test('does not reuse a Developer Cloud endpoint for QR authorization', async () => {
+    const constructorCalls: unknown[][] = [];
+    class CapturingLogin extends MockLogin {
+      constructor(...args: unknown[]) {
+        super();
+        constructorCalls.push(args);
+      }
+    }
+    const qrHandlers = handlers({
+      Login: CapturingLogin,
+      loginEndpoint: DEFAULT_LOGIN_ENDPOINT,
+    });
+    const staleDeveloperEndpoint = 'https://openapi.tuyaus.com';
+
+    await qrHandlers.start({
+      userCode: 'user-1',
+      clientId: 'client-override',
+      qrSchema: 'schema-override',
+      endpoint: staleDeveloperEndpoint,
+    });
+    await qrHandlers.poll({
+      userCode: 'user-1',
+      qrToken: 'qr-token',
+      clientId: 'client-override',
+      appSchema: 'smartlife',
+      endpoint: staleDeveloperEndpoint,
+    });
+
+    expect(constructorCalls).toEqual([
+      ['client-override', DEFAULT_LOGIN_ENDPOINT, undefined, 'schema-override'],
+      ['client-override', DEFAULT_LOGIN_ENDPOINT],
+    ]);
   });
 
   test('loads only selected homes and summarizes their devices', async () => {

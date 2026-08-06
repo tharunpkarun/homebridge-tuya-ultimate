@@ -403,6 +403,9 @@ function createHandlers(storagePath, dependencies = {}) {
   const CredentialStore = dependencies.CredentialStore || TuyaSharingCredentialStore;
   const Login = dependencies.Login || TuyaSharingLogin;
   const SharingAPI = dependencies.SharingAPI || TuyaSharingAPI;
+  const loginEndpoint = dependencies.loginEndpoint
+    || process.env.TUYA_SHARING_LOGIN_ENDPOINT
+    || DEFAULT_LOGIN_ENDPOINT;
   const listCredentialFiles = dependencies.listCredentialFiles || findCredentialFiles;
   const loadRuntimeDiagnostics = dependencies.readRuntimeDiagnostics
     || (() => readRuntimeDiagnostics(storagePath));
@@ -495,7 +498,7 @@ function createHandlers(storagePath, dependencies = {}) {
       const userCode = required(payload.userCode, 'User code');
       const clientId = payload.clientId || process.env.TUYA_SHARING_CLIENT_ID || DEFAULT_CLIENT_ID;
       const qrSchema = payload.qrSchema || process.env.TUYA_SHARING_SCHEMA || DEFAULT_SCHEMA;
-      const login = new Login(clientId, payload.endpoint || DEFAULT_LOGIN_ENDPOINT, undefined, qrSchema);
+      const login = new Login(clientId, loginEndpoint, undefined, qrSchema);
       const qr = await login.createQrCode(userCode);
       return {
         state: 'created',
@@ -509,7 +512,7 @@ function createHandlers(storagePath, dependencies = {}) {
       const clientId = payload.clientId || process.env.TUYA_SHARING_CLIENT_ID || DEFAULT_CLIENT_ID;
       const qrToken = required(payload.qrToken, 'QR token');
       const appSchema = payload.appSchema === 'smartlife' ? 'smartlife' : 'tuyaSmart';
-      const login = new Login(clientId, payload.endpoint || DEFAULT_LOGIN_ENDPOINT);
+      const login = new Login(clientId, loginEndpoint);
       const credentials = await login.loginResult(qrToken, userCode, appSchema);
       if (!credentials) return { state: 'pending' };
       const store = storeFor(userCode);
