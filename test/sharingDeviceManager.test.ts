@@ -316,7 +316,7 @@ describe('Tuya account-sharing device manager', () => {
         return success([
           {
             id: 'ir-hub', name: 'IR Thermostat', owner_id: 'home-1',
-            product_id: 'unlisted-ir-thermostat', product_name: 'IR Thermostat',
+            product_id: 'aqlyorlybbtn6ox7', product_name: 'IR Thermostat',
             category: 'hwktwkq', status: [], sub: false,
             ip: '203.0.113.50', local_key: '0123456789abcdef',
           },
@@ -370,7 +370,6 @@ describe('Tuya account-sharing device manager', () => {
     expect(devices).toHaveLength(2);
     const hub = devices.find(device => device.id === 'ir-hub')!;
     const airConditioner = devices.find(device => device.id === 'ir-ac')!;
-    airConditioner.infrared_ac_local_ip = '192.168.1.50';
     expect(hub.schema).toEqual([]);
     expect(hub.status).toEqual([]);
     expect(hub).not.toHaveProperty('local_key');
@@ -400,13 +399,23 @@ describe('Tuya account-sharing device manager', () => {
     expect(airConditioner.remote_keys?.key_range).not.toHaveLength(0);
     expect(get).not.toHaveBeenCalledWith(expect.stringMatching(/^\/v2\.0\/infrareds\//));
 
+    await deviceManager.onMQTTMessage('device/topic', 4, {
+      devId: 'ir-hub',
+      status: [
+        { code: 'infared_switch', value: true },
+        { code: 'temp_current', value: 265 },
+        { code: 'target_temp', value: 23 },
+        { code: 'mode', value: 'warm' },
+        { code: 'fan_level', value: 'middle' },
+        { code: 'humidity_current', value: 47 },
+      ],
+    });
+
     await expect(deviceManager.getInfraredACStatus('ir-hub', 'ir-ac')).resolves.toMatchObject({
       success: true,
       result: { power: 1, mode: 1, temp: 23, wind: 2 },
     });
-    expect(sharingLanClient.query).toHaveBeenCalledWith({
-      id: 'ir-hub', ip: '192.168.1.50', localKey: '0123456789abcdef',
-    });
+    expect(sharingLanClient.query).not.toHaveBeenCalled();
     expect(hub.status).toEqual(expect.arrayContaining([
       { code: 'temp_current', value: 26.5 },
       { code: 'humidity_current', value: 47 },
@@ -425,10 +434,29 @@ describe('Tuya account-sharing device manager', () => {
         { code: 'PowerOn', value: 'PowerOn' },
       ] },
     );
-    expect(postWithQuery).toHaveBeenCalledTimes(1);
+    expect(postWithQuery).toHaveBeenNthCalledWith(
+      2,
+      '/v1.1/m/thing/ir-hub/commands',
+      undefined,
+      { commands: [
+        { code: 'mode', value: 'warm' },
+        { code: 'target_temp', value: 23 },
+        { code: 'fan_level', value: 'middle' },
+        { code: 'infared_switch', value: true },
+      ] },
+    );
+    expect(postWithQuery).toHaveBeenCalledTimes(2);
+    expect(sharingLanClient.send).not.toHaveBeenCalled();
+
+    postWithQuery.mockImplementation(async (path: string) => path.includes('/ir-ac/')
+      ? { success: false as const, result: undefined, code: '1109', msg: '1109', t: 1, tid: 'test' }
+      : { success: false as const, result: undefined, code: '2008', msg: '2008', t: 1, tid: 'test' });
+    airConditioner.infrared_ac_local_ip = '192.168.1.50';
+    await expect(deviceManager.sendInfraredACCommands(airConditioner.parent_id!, 'ir-ac', 0, 1, 23, 2))
+      .resolves.toMatchObject({ success: true });
     expect(sharingLanClient.send).toHaveBeenCalledWith(
       { id: 'ir-hub', ip: '192.168.1.50', localKey: '0123456789abcdef' },
-      { '1': true, '3': 23, '4': 'warm', '5': 'middle' },
+      { '1': false },
     );
   });
 

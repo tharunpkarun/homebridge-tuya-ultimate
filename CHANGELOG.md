@@ -12,6 +12,7 @@
  - Retry Tuya error `1109` from compatible virtual IR air conditioners through the physical MOES-style IR thermostat datapoints exposed by the QR account API, accepting Tuya's string-form error code and inventories that omit the child-to-parent link or hide DP metadata.
  - Fall back to an in-memory QR-authorized LAN command for compatible protocol-3.3 IR thermostats when Tuya rejects both virtual and physical QR cloud commands; local keys are never added to device snapshots or logs.
  - Add a per-device physical thermostat LAN address and read protocol-3.3 DPs for actual power, mode, temperatures, fan, and humidity instead of retaining the QR child’s empty initial state.
+ - Match the MOES S16Pro Home Assistant profile by sending its original physical command codes (`infared_switch`, `target_temp`, `mode`, and `fan_level`) and projecting QR MQTT thermostat reports onto the virtual AC state without requiring a LAN address.
  - Initialize IR thermostat heating and cooling thresholds inside their advertised range before narrowing HomeKit's characteristic constraints.
  - Show an initial Config UI loader while stored authorization, homes, and devices are being discovered instead of briefly presenting a false disconnected state.
 
