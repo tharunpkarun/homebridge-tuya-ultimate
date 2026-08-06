@@ -147,7 +147,7 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       await this.initDevices();
     });
     this.api.on('shutdown', async () => {
-      this.deviceManager?.mq.stop();
+      this.deviceManager?.stop();
       const writes = [
         this.energyHistory?.flush(),
         this.runtimeDiagnostics?.flush(),

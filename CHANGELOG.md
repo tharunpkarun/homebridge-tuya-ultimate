@@ -18,6 +18,7 @@
 
 ### Fixed
  - Ensure an Apple Home plain `Turn On` sequence cannot replay HomeKit's default `Auto` target over the configured IR AC power-on profile, including either write order and delayed writes around the IR debounce.
+ - Reconcile Smart Life and Tuya Smart IR air-conditioner changes into HomeKit through coalesced cloud-status reads, bounded MQTT-triggered retries, and a short read-triggered polling window without sending another IR command.
 
 ## [2.6.7] - (2026.8.3)
 

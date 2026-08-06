@@ -39,6 +39,7 @@ class BaseAccessory {
   );
 
   public intialized = false;
+  private updateAllValuesDepth = 0;
 
   public adaptiveLightingController?;
 
@@ -128,37 +129,46 @@ class BaseAccessory {
   }
 
   async updateAllValues() {
-    for (const service of this.accessory.services) {
-      for (const characteristic of service.characteristics) {
-        if (characteristic.UUID === this.Characteristic.ProgrammableSwitchEvent.UUID) {
-          continue;
-        }
-
-        let newValue: Nullable<CharacteristicValue> | Error = characteristic.value;
-        const getHandler = characteristic['getHandler'];
-        if (getHandler) {
-          try {
-            newValue = await getHandler();
-          } catch (error) {
-            // TODO: why `characteristic.updateValue(HapStatusError)` not working?
-            // newValue = error as Error;
+    this.updateAllValuesDepth += 1;
+    try {
+      for (const service of this.accessory.services) {
+        for (const characteristic of service.characteristics) {
+          if (characteristic.UUID === this.Characteristic.ProgrammableSwitchEvent.UUID) {
             continue;
           }
-        }
 
-        if (characteristic.value !== newValue && !(newValue instanceof Error)) {
-          this.log.debug(
-            '[%s/%s/%s] Update value: %o => %o',
-            service.constructor.name,
-            service.subtype,
-            characteristic.constructor.name,
-            characteristic.value,
-            newValue,
-          );
+          let newValue: Nullable<CharacteristicValue> | Error = characteristic.value;
+          const getHandler = characteristic['getHandler'];
+          if (getHandler) {
+            try {
+              newValue = await getHandler();
+            } catch (error) {
+              // TODO: why `characteristic.updateValue(HapStatusError)` not working?
+              // newValue = error as Error;
+              continue;
+            }
+          }
+
+          if (characteristic.value !== newValue && !(newValue instanceof Error)) {
+            this.log.debug(
+              '[%s/%s/%s] Update value: %o => %o',
+              service.constructor.name,
+              service.subtype,
+              characteristic.constructor.name,
+              characteristic.value,
+              newValue,
+            );
+          }
+          characteristic.updateValue(newValue);
         }
-        characteristic.updateValue(newValue);
       }
+    } finally {
+      this.updateAllValuesDepth = Math.max(0, this.updateAllValuesDepth - 1);
     }
+  }
+
+  isUpdatingAllValues() {
+    return this.updateAllValuesDepth > 0;
   }
 
   checkOnlineStatus() {

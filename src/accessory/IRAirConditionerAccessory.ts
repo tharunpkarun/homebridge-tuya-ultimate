@@ -9,6 +9,7 @@ const AC_MODE_HEAT = 1;
 const AC_MODE_AUTO = 2;
 const TEMPERATURE_TOLERANCE = 0.5;
 const POWER_ON_AUTO_REPLAY_GUARD_MS = 2000;
+const STATUS_REFRESH_WAIT_MS = 1500;
 
 export type IRAirConditionerPowerOnMode = 'cool' | 'heat' | 'auto' | 'last';
 
@@ -20,6 +21,7 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
   private lastClimateMode?: number;
   private pendingPowerOnMode?: number;
   private suppressDefaultAutoUntil = 0;
+  private localCommandGeneration?: number;
 
   configureServices() {
     this.rememberClimateMode(this.getMode());
@@ -44,7 +46,8 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
 
     // Required Characteristics
     service.getCharacteristic(this.Characteristic.Active)
-      .onGet(() => {
+      .onGet(async () => {
+        await this.refreshStatusFromCloud();
         return ([AC_MODE_COOL, AC_MODE_HEAT, AC_MODE_AUTO].includes(this.getMode()) && this.getPower() === POWER_ON) ? ACTIVE : INACTIVE;
       })
       .onSet(async value => {
@@ -61,7 +64,8 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
     if (key_range.find(item => item.mode === AC_MODE_HEAT)) {
       const [minValue, maxValue] = this.getTempRange(AC_MODE_HEAT)!;
       service.getCharacteristic(this.Characteristic.HeatingThresholdTemperature)
-        .onGet(() => {
+        .onGet(async () => {
+          await this.refreshStatusFromCloud();
           if (this.getMode() === AC_MODE_AUTO) {
             return minValue;
           }
@@ -78,7 +82,10 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
     if (key_range.find(item => item.mode === AC_MODE_COOL)) {
       const [minValue, maxValue] = this.getTempRange(AC_MODE_COOL)!;
       service.getCharacteristic(this.Characteristic.CoolingThresholdTemperature)
-        .onGet(this.getTemp.bind(this))
+        .onGet(async () => {
+          await this.refreshStatusFromCloud();
+          return this.getTemp();
+        })
         .onSet(this.setTemp.bind(this))
         .setProps({ minValue, maxValue, minStep: 1 });
     }
@@ -101,6 +108,7 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
   }
 
   setPower(value) {
+    this.localCommandGeneration = this.deviceManager.noteInfraredACLocalCommand(this.device.id);
     this.getStatus('power')!.value = value;
     this.updateCurrentState();
     this.debounceSendACCommands();
@@ -133,6 +141,7 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
   }
 
   setMode(value) {
+    this.localCommandGeneration = this.deviceManager.noteInfraredACLocalCommand(this.device.id);
     this.getStatus('mode')!.value = value;
     this.rememberClimateMode(value);
     this.updateCurrentState();
@@ -277,6 +286,7 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
   }
 
   setTemp(value) {
+    this.localCommandGeneration = this.deviceManager.noteInfraredACLocalCommand(this.device.id);
     this.getStatus('temp')!.value = value;
     this.updateCurrentState();
     this.debounceSendACCommands();
@@ -302,6 +312,29 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
 
   getParentDevice() {
     return this.deviceManager.getDevice(this.device.parent_id!);
+  }
+
+  async refreshStatusFromCloud() {
+    if (this.isUpdatingAllValues()) {
+      return;
+    }
+    this.deviceManager.watchInfraredACStatus(this.device.id);
+    try {
+      let timeout: NodeJS.Timeout | undefined;
+      await Promise.race([
+        this.deviceManager.ensureInfraredACStatusFresh(this.device.id),
+        new Promise<void>(resolve => {
+          timeout = setTimeout(resolve, STATUS_REFRESH_WAIT_MS);
+          timeout.unref?.();
+        }),
+      ]).finally(() => {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+      });
+    } catch (error) {
+      this.log.debug('IR AC status refresh failed: %s', String(error));
+    }
   }
 
   getParentSensorValue(code: string) {
@@ -357,7 +390,8 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
     }
 
     this.mainService().getCharacteristic(this.Characteristic.TargetHeaterCoolerState)
-      .onGet(() => {
+      .onGet(async () => {
+        await this.refreshStatusFromCloud();
         const currentMode = this.getMode();
         if (this.isSupportedClimateMode(currentMode)) {
           this.rememberClimateMode(currentMode);
@@ -373,12 +407,18 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
 
   configureCurrentTemperature() {
     this.mainService().getCharacteristic(this.Characteristic.CurrentTemperature)
-      .onGet(() => this.getAmbientTemperature());
+      .onGet(async () => {
+        await this.refreshStatusFromCloud();
+        return this.getAmbientTemperature();
+      });
   }
 
   configureCurrentState() {
     this.mainService().getCharacteristic(this.Characteristic.CurrentHeaterCoolerState)
-      .onGet(() => this.getCurrentState());
+      .onGet(async () => {
+        await this.refreshStatusFromCloud();
+        return this.getCurrentState();
+      });
   }
 
   getCurrentState() {
@@ -427,14 +467,29 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
 
   async sendACCommands() {
     const { parent_id, id } = this.device;
-    const wind = parseInt((this.getStatus('wind')?.value || '0').toString());
-    const mode = this.pendingPowerOnMode ?? this.getMode();
-    if (mode !== this.getMode()) {
-      this.getStatus('mode')!.value = mode;
-      this.rememberClimateMode(mode);
-      this.updateCurrentState();
+    const commandGeneration = this.localCommandGeneration
+      ?? this.deviceManager.noteInfraredACLocalCommand(id);
+    this.deviceManager.beginInfraredACLocalCommand(id, commandGeneration);
+    try {
+      const wind = parseInt((this.getStatus('wind')?.value || '0').toString());
+      const mode = this.pendingPowerOnMode ?? this.getMode();
+      this.pendingPowerOnMode = undefined;
+      if (mode !== this.getMode()) {
+        this.getStatus('mode')!.value = mode;
+        this.rememberClimateMode(mode);
+        this.updateCurrentState();
+      }
+      const response = await this.deviceManager.sendInfraredACCommands(
+        parent_id!, id, this.getPower(), mode, this.getTemp(), wind,
+      );
+      this.deviceManager.completeInfraredACLocalCommand(id, commandGeneration, response?.success !== false);
+    } catch (error) {
+      this.deviceManager.completeInfraredACLocalCommand(id, commandGeneration, false);
+      throw error;
+    } finally {
+      if (this.localCommandGeneration === commandGeneration) {
+        this.localCommandGeneration = undefined;
+      }
     }
-    this.pendingPowerOnMode = undefined;
-    await this.deviceManager.sendInfraredACCommands(parent_id!, id, this.getPower(), mode, this.getTemp(), wind);
   }
 }
