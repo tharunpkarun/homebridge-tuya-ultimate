@@ -1283,7 +1283,6 @@
     async function useStoredQrAccount() {
       const candidate = storedQrCandidate()
       if (!candidate) throw new Error('No unambiguous stored QR authorization is available.')
-      if (!window.confirm("Switch to QR authorization? Tuya's QR account API does not provide IR remote metadata or control, so IR AC/remotes will be omitted. Keep Tuya Developer Cloud if you need them.")) return
       const value = options()
       value.projectType = '3'
       value.userCode = candidate.userCode

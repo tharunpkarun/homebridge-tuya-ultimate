@@ -366,6 +366,7 @@ describe('Homebridge custom UI', () => {
 
   test('offers a stored QR authorization when developer-project mode is selected', async () => {
     const listeners = new Map<string, UiEventHandler[]>();
+    const confirm = jest.fn(() => false);
     const updatePluginConfig = jest.fn();
     const savePluginConfig = jest.fn();
     const request = jest.fn(async (route: string) => {
@@ -397,7 +398,7 @@ describe('Homebridge custom UI', () => {
     const dom = new JSDOM(html, {
       beforeParse(window) {
         window.HTMLElement.prototype.scrollIntoView = jest.fn();
-        window.confirm = jest.fn(() => true);
+        window.confirm = confirm;
         Object.defineProperty(window, 'homebridge', {
           configurable: true,
           value: {
@@ -447,6 +448,8 @@ describe('Homebridge custom UI', () => {
     (document.getElementById('tuyaUseStoredQr') as HTMLButtonElement).click();
     await new Promise(resolve => setTimeout(resolve, 0));
     await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(confirm).not.toHaveBeenCalled();
 
     expect(updatePluginConfig).toHaveBeenCalledWith([
       expect.objectContaining({
