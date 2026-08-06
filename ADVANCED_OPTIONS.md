@@ -25,6 +25,7 @@ Before configuring, you may need to:
 - `adaptiveLighting` - **optional**: Adaptive Lighting. Defaults to `false`. Not all light device support this feature, please use it on demand.
 - `garageDoorUseContactSensorForState` - **optional**: For garage door controllers. When `true`, `CurrentDoorState` and `TargetDoorState` reads use `doorcontact_state` only, while set commands still use `switch_1`. Defaults to `false`.
 - `irAirConditionerPowerOnMode` - **optional**: For IR air conditioners, the mode used by a plain Apple Home **Turn On** request. One of `cool` (default), `heat`, `auto`, or `last`. If the selected mode is unsupported, the handler chooses an available climate mode.
+- `irAirConditionerLocalIp` - **optional**: Private LAN address of a QR-authorized physical IR thermostat. Compatible protocol-3.3 controllers use the QR-derived local key in memory, so the key does not need to be copied into configuration.
 - `localControl` - **optional, beta**: Per-device Tuya LAN protocol 3.3 command routing. Requires a route mode, verified IP/local key, and explicit schema-code-to-numeric-DP mappings. It does not provide local discovery or state updates.
 - `schema` - **optional**: An array of schema overriding config objects, used for describing datapoint (DP). When your device has non-standard DP, you need to transform them manually with configuration. Each element in the schema array is described as follows:
   - `code` - **required**: DP code.

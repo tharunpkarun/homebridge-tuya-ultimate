@@ -9,6 +9,7 @@ const VERSION_HEADER_SIZE = 15;
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 
 export const TUYA_CONTROL_COMMAND = 7;
+export const TUYA_DP_QUERY_COMMAND = 10;
 
 let crcTable: number[] | undefined;
 
@@ -34,7 +35,7 @@ export function crc32(buffer: Buffer) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-export function encryptProtocol33Payload(payload: object, localKey: string) {
+function encryptProtocol33PayloadBody(payload: object, localKey: string) {
   const key = Buffer.from(localKey, 'utf8');
   if (key.length !== 16) {
     throw new Error('Tuya LAN local key must contain exactly 16 UTF-8 bytes.');
@@ -45,9 +46,28 @@ export function encryptProtocol33Payload(payload: object, localKey: string) {
     cipher.update(Buffer.from(JSON.stringify(payload), 'utf8')),
     cipher.final(),
   ]);
+  return encrypted;
+}
+
+export function encryptProtocol33Payload(payload: object, localKey: string) {
+  const encrypted = encryptProtocol33PayloadBody(payload, localKey);
   const version = Buffer.alloc(VERSION_HEADER_SIZE);
   version.write('3.3', 0, 'ascii');
   return Buffer.concat([version, encrypted]);
+}
+
+export function decryptProtocol33Payload(payload: Buffer, localKey: string) {
+  const key = Buffer.from(localKey, 'utf8');
+  if (key.length !== 16) {
+    throw new Error('Tuya LAN local key must contain exactly 16 UTF-8 bytes.');
+  }
+  const encrypted = payload.subarray(0, 3).toString('ascii') === '3.3'
+    ? payload.subarray(VERSION_HEADER_SIZE)
+    : payload;
+  const decipher = crypto.createDecipheriv('aes-128-ecb', key, null);
+  decipher.setAutoPadding(true);
+  const plaintext = Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
+  return JSON.parse(plaintext) as Record<string, unknown>;
 }
 
 export function encodeTuyaFrame(sequence: number, command: number, payload: Buffer) {
@@ -123,19 +143,49 @@ export default class TuyaLanProtocol33Client {
     await this.exchange(device.ip, device.port ?? 6668, frame, timeoutMs);
   }
 
-  private exchange(host: string, port: number, request: Buffer, timeoutMs: number): Promise<void> {
+  async query(device: TuyaLanDevice): Promise<Record<string, unknown>> {
+    if (!net.isIP(device.ip)) {
+      throw new Error('Tuya LAN device IP address is invalid.');
+    }
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    // Protocol 3.3 DP_QUERY is encrypted but, unlike CONTROL, has no 15-byte version header.
+    const payload = encryptProtocol33PayloadBody({
+      gwId: device.id,
+      devId: device.id,
+      uid: device.id,
+      t: timestamp,
+      dps: {},
+    }, device.localKey);
+    const frame = encodeTuyaFrame(++this.sequence, TUYA_DP_QUERY_COMMAND, payload);
+    const configuredTimeout = device.timeoutMs ?? 3000;
+    const timeoutMs = Number.isFinite(configuredTimeout)
+      ? Math.min(30_000, Math.max(250, configuredTimeout))
+      : 3000;
+    const response = await this.exchange(device.ip, device.port ?? 6668, frame, timeoutMs);
+    const responsePayload = response.payload.length >= 4
+      ? response.payload.subarray(4)
+      : response.payload;
+    const decoded = decryptProtocol33Payload(responsePayload, device.localKey);
+    const dps = decoded.dps;
+    if (!dps || typeof dps !== 'object' || Array.isArray(dps)) {
+      throw new Error('Tuya LAN status response did not contain datapoints.');
+    }
+    return dps as Record<string, unknown>;
+  }
+
+  private exchange(host: string, port: number, request: Buffer, timeoutMs: number): Promise<DecodedTuyaFrame> {
     return new Promise((resolve, reject) => {
       const socket = net.createConnection({ host, port });
       let response = Buffer.alloc(0);
       let settled = false;
 
-      const finish = (error?: Error) => {
+      const finish = (error?: Error, result?: DecodedTuyaFrame) => {
         if (settled) {
           return;
         }
         settled = true;
         socket.destroy();
-        error ? reject(error) : resolve();
+        error ? reject(error) : resolve(result!);
       };
 
       socket.setTimeout(timeoutMs, () => finish(new Error('Tuya LAN command timed out.')));
@@ -171,7 +221,7 @@ export default class TuyaLanProtocol33Client {
             finish(new Error(`Tuya LAN device rejected the command (${decoded.payload.readUInt32BE(0)}).`));
             return;
           }
-          finish();
+          finish(undefined, decoded);
         } catch (error) {
           finish(error as Error);
         }

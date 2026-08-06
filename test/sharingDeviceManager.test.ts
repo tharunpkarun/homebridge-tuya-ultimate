@@ -318,7 +318,7 @@ describe('Tuya account-sharing device manager', () => {
             id: 'ir-hub', name: 'IR Thermostat', owner_id: 'home-1',
             product_id: 'unlisted-ir-thermostat', product_name: 'IR Thermostat',
             category: 'hwktwkq', status: [], sub: false,
-            ip: '192.168.1.50', local_key: '0123456789abcdef',
+            ip: '203.0.113.50', local_key: '0123456789abcdef',
           },
           {
             id: 'ir-ac', name: 'Bedroom AC', owner_id: 'home-1',
@@ -351,7 +351,17 @@ describe('Tuya account-sharing device manager', () => {
       post: jest.fn(),
       postWithQuery,
     } as unknown as TuyaSharingAPI;
-    const sharingLanClient = { send: jest.fn(async () => undefined) };
+    const sharingLanClient = {
+      send: jest.fn(async () => undefined),
+      query: jest.fn(async () => ({
+        1: true,
+        2: 265,
+        3: 23,
+        4: 'warm',
+        5: 'middle',
+        12: 47,
+      })),
+    };
     const deviceManager = new TuyaSharingDeviceManager(api, false, sharingLanClient);
     const devices = await deviceManager.updateDevices(['home-1']);
 
@@ -360,6 +370,7 @@ describe('Tuya account-sharing device manager', () => {
     expect(devices).toHaveLength(2);
     const hub = devices.find(device => device.id === 'ir-hub')!;
     const airConditioner = devices.find(device => device.id === 'ir-ac')!;
+    airConditioner.infrared_ac_local_ip = '192.168.1.50';
     expect(hub.schema).toEqual([]);
     expect(hub.status).toEqual([]);
     expect(hub).not.toHaveProperty('local_key');
@@ -388,6 +399,18 @@ describe('Tuya account-sharing device manager', () => {
     ]);
     expect(airConditioner.remote_keys?.key_range).not.toHaveLength(0);
     expect(get).not.toHaveBeenCalledWith(expect.stringMatching(/^\/v2\.0\/infrareds\//));
+
+    await expect(deviceManager.getInfraredACStatus('ir-hub', 'ir-ac')).resolves.toMatchObject({
+      success: true,
+      result: { power: 1, mode: 1, temp: 23, wind: 2 },
+    });
+    expect(sharingLanClient.query).toHaveBeenCalledWith({
+      id: 'ir-hub', ip: '192.168.1.50', localKey: '0123456789abcdef',
+    });
+    expect(hub.status).toEqual(expect.arrayContaining([
+      { code: 'temp_current', value: 26.5 },
+      { code: 'humidity_current', value: 47 },
+    ]));
 
     await expect(deviceManager.sendInfraredACCommands(airConditioner.parent_id!, 'ir-ac', 1, 1, 23, 2))
       .resolves.toMatchObject({ success: true });

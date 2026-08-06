@@ -52,6 +52,10 @@ const DIRECT_IR_THERMOSTAT_DEFAULT_CODES = {
 const DIRECT_IR_THERMOSTAT_MODES = ['cold', 'warm', 'auto', 'air', 'dehumidify'] as const;
 const DIRECT_IR_THERMOSTAT_FANS = ['auto', 'low', 'middle', 'high'] as const;
 
+type SharingLanClient = TuyaLocalClient & {
+  query?: (device: { id: string; ip: string; localKey: string; timeoutMs?: number }) => Promise<Record<string, unknown>>;
+};
+
 export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
   public readonly sharingMq: TuyaSharingMQ;
   private readonly sharingLocalKeys = new Map<string, string>();
@@ -59,7 +63,7 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
   constructor(
     public readonly sharingApi: TuyaSharingAPI,
     debug = false,
-    private readonly sharingLanClient: TuyaLocalClient = new TuyaLanProtocol33Client(),
+    private readonly sharingLanClient: SharingLanClient = new TuyaLanProtocol33Client(),
   ) {
     const messageBus = new TuyaSharingMQ(sharingApi);
     super(sharingApi, debug, messageBus);
@@ -235,6 +239,17 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       return super.getInfraredACStatus(infraredID, remoteID);
     }
 
+    const thermostat = this.findDirectInfraredThermostat(device, infraredID);
+    const connection = thermostat && this.getInfraredThermostatLANConnection(device, thermostat);
+    if (thermostat && connection && this.sharingLanClient.query) {
+      try {
+        const dps = await this.sharingLanClient.query(connection);
+        this.mergeDirectInfraredThermostatLANStatus(device, thermostat, dps);
+      } catch (error) {
+        this.log.debug('Local QR-authorized IR thermostat status read failed: %s', String(error));
+      }
+    }
+
     return {
       success: true as const,
       result: Object.fromEntries(SHARING_IR_AC_STATUS_CODES.map(code => [
@@ -314,15 +329,15 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
   }
 
   private async sendDirectInfraredThermostatLAN(
-    target: { thermostat: TuyaDevice; commands: TuyaDeviceStatus[] },
+    target: { remote: TuyaDevice; thermostat: TuyaDevice; commands: TuyaDeviceStatus[] },
   ) {
     const localKey = this.sharingLocalKeys.get(target.thermostat.id);
-    const ip = target.thermostat.ip.trim();
     if (!localKey) {
       this.log.info('Local IR thermostat retry unavailable: QR inventory did not provide a valid local key.');
       return undefined;
     }
-    if (!isPrivateIPv4(ip)) {
+    const connection = this.getInfraredThermostatLANConnection(target.remote, target.thermostat);
+    if (!connection) {
       this.log.info('Local IR thermostat retry unavailable: QR inventory did not provide a private LAN address.');
       return undefined;
     }
@@ -345,9 +360,7 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
     this.log.info('Sending QR-authorized IR thermostat command over the local network.');
     try {
       await this.sharingLanClient.send({
-        id: target.thermostat.id,
-        ip,
-        localKey,
+        ...connection,
       }, dps);
       return {
         success: true as const,
@@ -361,6 +374,60 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
     }
   }
 
+  private getInfraredThermostatLANConnection(remote: TuyaDevice, thermostat: TuyaDevice) {
+    const localKey = this.sharingLocalKeys.get(thermostat.id);
+    const configuredIP = remote.infrared_ac_local_ip?.trim()
+      || thermostat.infrared_ac_local_ip?.trim();
+    const ip = configuredIP || thermostat.ip.trim();
+    if (!localKey || !isPrivateIPv4(ip)) {
+      return undefined;
+    }
+    return { id: thermostat.id, ip, localKey };
+  }
+
+  private mergeDirectInfraredThermostatLANStatus(
+    remote: TuyaDevice,
+    thermostat: TuyaDevice,
+    dps: Record<string, unknown>,
+  ) {
+    const updateRemote = (code: string, value: string | number | boolean | undefined) => {
+      if (value === undefined) {
+        return;
+      }
+      const status = remote.status.find(item => item.code === code);
+      if (status) {
+        status.value = value;
+      } else {
+        remote.status.push({ code, value });
+      }
+    };
+    const updateThermostat = (code: string, value: number | undefined) => {
+      if (value === undefined || !Number.isFinite(value)) {
+        return;
+      }
+      const status = thermostat.status.find(item => item.code === code);
+      if (status) {
+        status.value = value;
+      } else {
+        thermostat.status.push({ code, value });
+      }
+    };
+
+    if (dps['1'] !== undefined) {
+      updateRemote('power', dps['1'] === true || Number(dps['1']) === 1 ? 1 : 0);
+    }
+    const mode = DIRECT_IR_THERMOSTAT_MODES.indexOf(String(dps['4']) as typeof DIRECT_IR_THERMOSTAT_MODES[number]);
+    updateRemote('mode', mode >= 0 ? mode : undefined);
+    const targetTemperature = Number(dps['3']);
+    updateRemote('temp', Number.isFinite(targetTemperature) ? targetTemperature : undefined);
+    const fan = DIRECT_IR_THERMOSTAT_FANS.indexOf(String(dps['5']) as typeof DIRECT_IR_THERMOSTAT_FANS[number]);
+    updateRemote('wind', fan >= 0 ? fan : undefined);
+    const currentTemperature = Number(dps['2']);
+    updateThermostat('temp_current', Number.isFinite(currentTemperature) ? currentTemperature / 10 : undefined);
+    const humidity = Number(dps['12']);
+    updateThermostat('humidity_current', Number.isFinite(humidity) ? humidity : undefined);
+  }
+
   private getDirectInfraredThermostatCommands(
     remote: TuyaDevice,
     infraredID: string,
@@ -368,7 +435,7 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
     mode: number,
     temp: number,
     wind: number,
-  ): { thermostat: TuyaDevice; commands: TuyaDeviceStatus[] } | undefined {
+  ): { remote: TuyaDevice; thermostat: TuyaDevice; commands: TuyaDeviceStatus[] } | undefined {
     const thermostat = this.findDirectInfraredThermostat(remote, infraredID);
     if (!thermostat) {
       return undefined;
@@ -378,7 +445,7 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       || fallback;
     const powerCode = code(1, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.power);
     if (power !== 1) {
-      return { thermostat, commands: [{ code: powerCode, value: false }] };
+      return { remote, thermostat, commands: [{ code: powerCode, value: false }] };
     }
 
     const temperatureCode = code(3, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.temperature);
@@ -391,6 +458,7 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
     const fanValue = DIRECT_IR_THERMOSTAT_FANS[wind];
 
     return {
+      remote,
       thermostat,
       commands: [
         { code: modeCode, value: modeValue },

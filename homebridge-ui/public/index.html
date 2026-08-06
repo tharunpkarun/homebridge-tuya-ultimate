@@ -525,6 +525,14 @@
     const errorMessage = error => error?.error?.message || error?.message || String(error)
     const projectLabels = { '1': 'Custom project', '2': 'Tuya Developer Cloud', '3': 'QR login' }
     const categoryPattern = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,95}$/
+
+    function isPrivateIPv4(value) {
+      const octets = String(value || '').split('.').map(Number)
+      if (octets.length !== 4 || octets.some(octet => !Number.isInteger(octet) || octet < 0 || octet > 255)) return false
+      return octets[0] === 10
+        || (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)
+        || (octets[0] === 192 && octets[1] === 168)
+    }
     const lightCategories = new Set(['dj', 'dsd', 'xdd', 'fwd', 'dc', 'dd', 'gyd', 'tyndj', 'sxd'])
     const brightnessCodes = new Set(['bright_value', 'bright_value_v2'])
     const colorTemperatureCodes = new Set(['temp_value', 'temp_value_v2'])
@@ -621,6 +629,9 @@
         irAirConditionerPowerOnMode: ['cool', 'heat', 'auto', 'last'].includes(value.irAirConditionerPowerOnMode)
           ? value.irAirConditionerPowerOnMode
           : 'cool',
+        irAirConditionerLocalIp: typeof value.irAirConditionerLocalIp === 'string'
+          ? value.irAirConditionerLocalIp
+          : '',
       }
     }
 
@@ -1084,6 +1095,21 @@
       )
       irField.dataset.optionContext = 'ir-ac'
       grid.append(irField)
+
+      const irLocalIp = element('input', 'tuya-input tuya-mono')
+      irLocalIp.id = `tuya-device-${device.id}-ir-local-ip`
+      irLocalIp.type = 'text'
+      irLocalIp.inputMode = 'decimal'
+      irLocalIp.placeholder = '192.168.1.50'
+      irLocalIp.value = state.irAirConditionerLocalIp
+      irLocalIp.dataset.deviceOption = 'irLocalIp'
+      const irLocalIpField = optionField(
+        'Physical thermostat LAN IP',
+        irLocalIp,
+        'Private IP from your router or Home Assistant. The QR-derived local key stays protected and is used automatically.',
+      )
+      irLocalIpField.dataset.optionContext = 'ir-ac'
+      grid.append(irLocalIpField)
       block.append(grid)
 
       const actions = element('div', 'tuya-option-actions')
@@ -1103,10 +1129,13 @@
         const garageVisible = effectiveCategory === 'ckmkzq' || state.garageDoorUseContactSensorForState
         const irVisible = effectiveCategory === 'infrared_ac'
           || state.irAirConditionerPowerOnMode !== 'cool'
+          || Boolean(state.irAirConditionerLocalIp)
           || Object.prototype.hasOwnProperty.call(state.source.value || {}, 'irAirConditionerPowerOnMode')
+          || Object.prototype.hasOwnProperty.call(state.source.value || {}, 'irAirConditionerLocalIp')
         adaptive.label.hidden = !adaptiveVisible
         garage.label.hidden = !garageVisible
         irField.hidden = !irVisible
+        irLocalIpField.hidden = !irVisible
         return { adaptiveVisible, garageVisible, irVisible }
       }
 
@@ -1119,6 +1148,7 @@
           adaptiveLighting: context.adaptiveVisible ? adaptive.input.checked : undefined,
           garageDoorUseContactSensorForState: context.garageVisible ? garage.input.checked : undefined,
           irAirConditionerPowerOnMode: context.irVisible ? irMode.value : undefined,
+          irAirConditionerLocalIp: context.irVisible ? irLocalIp.value.trim() : undefined,
         }
       }
       contextualState()
@@ -1127,7 +1157,7 @@
         const changed = JSON.stringify(formValue()) !== initialValue
         save.disabled = deviceOptionsSaving || !changed
       }
-      for (const input of [visibility.input, exposure, category, adaptive.input, garage.input, irMode]) {
+      for (const input of [visibility.input, exposure, category, adaptive.input, garage.input, irMode, irLocalIp]) {
         input.addEventListener(input === category ? 'input' : 'change', updateSaveState)
       }
       save.addEventListener('click', () => saveDeviceOptions(device, formValue()))
@@ -1545,6 +1575,10 @@
         homebridge.toast.error('Category codes must start with a letter or number and contain only letters, numbers, dot, underscore, or hyphen.', 'Invalid category override')
         return
       }
+      if (value.irAirConditionerLocalIp && !isPrivateIPv4(value.irAirConditionerLocalIp)) {
+        homebridge.toast.error('Enter a private IPv4 address such as 192.168.1.50.', 'Invalid thermostat LAN IP')
+        return
+      }
 
       const source = overrideSourceForDevice(device)
       const targetId = source.kind === 'device' ? source.value.id : device.id
@@ -1560,6 +1594,8 @@
       } else if (value.irAirConditionerPowerOnMode === 'cool') {
         delete target.irAirConditionerPowerOnMode
       }
+      if (value.irAirConditionerLocalIp) target.irAirConditionerLocalIp = value.irAirConditionerLocalIp
+      else delete target.irAirConditionerLocalIp
 
       const hadOverrides = Array.isArray(options().deviceOverrides)
       const previousOverrides = cloneConfigValue(options().deviceOverrides)

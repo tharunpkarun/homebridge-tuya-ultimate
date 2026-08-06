@@ -142,6 +142,7 @@ export default class TuyaDevice {
   infrared_ac_command_mode?: TuyaInfraredACCommandMode;
   infrared_remote_command_mode?: TuyaInfraredRemoteCommandMode;
   infrared_ac_product_api_resolved?: boolean;
+  infrared_ac_local_ip?: string;
   support_local?: boolean;
   local_strategy?: Record<number, TuyaSharingLocalStrategy>;
   /** DP-to-code metadata retained for targeted account-sharing command fallbacks. */

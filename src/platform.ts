@@ -354,6 +354,7 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
     if (!deviceConfig) {
       device.hidden = false;
       device.unbridged = false;
+      device.infrared_ac_local_ip = undefined;
       return;
     }
 
@@ -373,6 +374,9 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       this.log.warn('Unbridge %o category %o', device.name, device.category);
     }
     device.unbridged = unbridged;
+    device.infrared_ac_local_ip = typeof deviceConfig.irAirConditionerLocalIp === 'string'
+      ? deviceConfig.irAirConditionerLocalIp.trim() || undefined
+      : undefined;
   }
 
   getDeviceSchemaConfig(device: TuyaDevice, code: string) {

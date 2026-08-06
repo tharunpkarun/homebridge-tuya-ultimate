@@ -5,9 +5,11 @@ import net from 'net';
 import TuyaLocalCommandRouter from '../src/local/TuyaLocalCommandRouter';
 import {
   decodeTuyaFrame,
+  decryptProtocol33Payload,
   encodeTuyaFrame,
   encryptProtocol33Payload,
   TUYA_CONTROL_COMMAND,
+  TUYA_DP_QUERY_COMMAND,
   default as TuyaLanProtocol33Client,
 } from '../src/local/TuyaLanProtocol33';
 import TuyaDevice from '../src/device/TuyaDevice';
@@ -75,6 +77,33 @@ describe('Tuya LAN protocol 3.3', () => {
     socket.emit('connect');
     socket.emit('data', header);
     await expect(result).rejects.toThrow(/frame size/i);
+  });
+
+  test('queries and decrypts protocol 3.3 datapoint state', async () => {
+    const socket = fakeSocket();
+    jest.spyOn(net, 'createConnection').mockReturnValue(socket as never);
+    const client = new TuyaLanProtocol33Client();
+    const localKey = '0123456789abcdef';
+    const result = client.query({
+      id: 'device-1',
+      ip: '127.0.0.1',
+      localKey,
+      timeoutMs: 1000,
+    });
+
+    socket.emit('connect');
+    const request = decodeTuyaFrame(socket.write.mock.calls[0][0]);
+    expect(request.command).toBe(TUYA_DP_QUERY_COMMAND);
+    expect(decryptProtocol33Payload(request.payload, localKey)).toMatchObject({
+      devId: 'device-1',
+      dps: {},
+    });
+
+    const encryptedStatus = encryptProtocol33Payload({ dps: { 1: true, 2: 265 } }, localKey);
+    const response = encodeTuyaFrame(1, TUYA_DP_QUERY_COMMAND, Buffer.concat([Buffer.alloc(4), encryptedStatus]));
+    socket.emit('data', response);
+
+    await expect(result).resolves.toEqual({ 1: true, 2: 265 });
   });
 });
 

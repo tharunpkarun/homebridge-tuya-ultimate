@@ -493,6 +493,7 @@ describe('Homebridge custom UI', () => {
     (inspector.querySelector('summary') as HTMLElement).click();
     expect(inspector.textContent).toContain('Inherited product override');
     expect(inspector.textContent).toContain('IR AC plain Turn On mode');
+    expect(inspector.textContent).toContain('Physical thermostat LAN IP');
     expect(document.body.textContent).not.toContain('inherited-local-secret');
 
     const exposure = inspector.querySelector('[data-device-option="exposure"]') as HTMLSelectElement;
@@ -501,6 +502,9 @@ describe('Homebridge custom UI', () => {
     const irMode = inspector.querySelector('[data-device-option="irPowerOnMode"]') as HTMLSelectElement;
     irMode.value = 'last';
     irMode.dispatchEvent(new dom.window.Event('change'));
+    const irLocalIp = inspector.querySelector('[data-device-option="irLocalIp"]') as HTMLInputElement;
+    irLocalIp.value = '192.168.1.50';
+    irLocalIp.dispatchEvent(new dom.window.Event('input'));
     (inspector.querySelector('[data-device-options-save]') as HTMLButtonElement).click();
     await new Promise(resolve => setTimeout(resolve, 0));
 
@@ -514,6 +518,7 @@ describe('Homebridge custom UI', () => {
         id: 'ir-ac-1',
         unbridged: true,
         irAirConditionerPowerOnMode: 'last',
+        irAirConditionerLocalIp: '192.168.1.50',
       },
     ]);
     expect(savePluginConfig).toHaveBeenCalledTimes(1);

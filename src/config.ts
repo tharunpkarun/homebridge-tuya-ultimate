@@ -20,6 +20,7 @@ export interface TuyaPlatformDeviceConfig {
   adaptiveLighting?: boolean;
   garageDoorUseContactSensorForState?: boolean;
   irAirConditionerPowerOnMode?: 'cool' | 'heat' | 'auto' | 'last';
+  irAirConditionerLocalIp?: string;
   localControl?: TuyaPlatformLocalControlConfig;
 }
 

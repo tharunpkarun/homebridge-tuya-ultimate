@@ -177,4 +177,26 @@ describe('Tuya platform startup resilience', () => {
     expect(device.category).toBe('kg');
     expect(api.registerPlatformAccessories).not.toHaveBeenCalled();
   });
+
+  test('applies the configured QR IR thermostat LAN address to the runtime device', () => {
+    const { platform } = createPlatform();
+    platform.options.deviceOverrides = [{
+      id: 'ir-ac',
+      hidden: true,
+      irAirConditionerLocalIp: ' 192.168.1.50 ',
+    }];
+    const device = new TuyaDevice({
+      id: 'ir-ac',
+      uuid: 'ir-ac',
+      name: 'Bedroom AC',
+      category: 'infrared_ac',
+      product_id: 'ir-product',
+      schema: [],
+      status: [],
+    });
+
+    platform.addAccessory(device);
+
+    expect(device.infrared_ac_local_ip).toBe('192.168.1.50');
+  });
 });
