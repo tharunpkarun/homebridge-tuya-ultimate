@@ -118,10 +118,14 @@ export interface TuyaDeveloperCloudFallbackConfig {
   endpoint?: string;
   accessId: string;
   accessKey: string;
-  countryCode: number;
-  username: string;
-  password: string;
-  appSchema: string;
+  /** Retained for configurations created before direct project-token support. */
+  countryCode?: number;
+  /** @deprecated Project-token authentication does not use app credentials. */
+  username?: string;
+  /** @deprecated Project-token authentication does not use app credentials. */
+  password?: string;
+  /** @deprecated Project-token authentication does not use app credentials. */
+  appSchema?: string;
 }
 
 export interface RTSPCameraConfig {
@@ -176,6 +180,16 @@ export const accountOptionsSchema = {
     qrSchema: { type: 'string' },
     endpoint: { type: 'string', format: 'url' },
     homeWhitelist: { type: 'array', items: { type: 'string' } },
+    developerCloudFallback: {
+      type: 'object',
+      properties: {
+        enabled: { type: 'boolean' },
+        endpoint: { type: 'string', format: 'url' },
+        accessId: { type: 'string' },
+        accessKey: { type: 'string' },
+        countryCode: { type: 'integer', minimum: 1 },
+      },
+    },
     deviceOverrides: { type: 'array' },
     debug: { type: 'boolean' },
     debugLevel: { type: 'string' },

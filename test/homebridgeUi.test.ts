@@ -214,6 +214,12 @@ describe('Homebridge custom UI', () => {
                 forceIPv4: false,
                 capabilityAutoDetection: true,
                 energyHistory: { enabled: true, retentionDays: 45, sampleIntervalMinutes: 10 },
+                developerCloudFallback: {
+                  enabled: true,
+                  endpoint: 'https://openapi.tuyain.com',
+                  accessId: 'ir-project-id',
+                  accessKey: 'ir-project-secret',
+                },
                 deviceOverrides: [{
                   id: 'device-1',
                   localControl: { mode: 'hybrid', localKey: 'sixteen-byte-key', dpMap: [] },
@@ -393,6 +399,28 @@ describe('Homebridge custom UI', () => {
 
     (document.querySelector('[data-tuya-tab="account"]') as HTMLButtonElement).click();
     expect(document.getElementById('tuyaPanelAccount')?.hidden).toBe(false);
+    expect((document.getElementById('tuyaQrCloudEnabled') as HTMLInputElement).checked).toBe(true);
+    expect((document.getElementById('tuyaQrCloudEndpoint') as HTMLSelectElement).value)
+      .toBe('https://openapi.tuyain.com');
+    expect((document.getElementById('tuyaQrCloudAccessId') as HTMLInputElement).value).toBe('ir-project-id');
+    expect((document.getElementById('tuyaQrCloudAccessKey') as HTMLInputElement).value).toBe('ir-project-secret');
+    expect((document.getElementById('tuyaQrCloudAccessId') as HTMLInputElement).disabled).toBe(false);
+    (document.getElementById('tuyaQrCloudAccessId') as HTMLInputElement).value = 'updated-ir-project-id';
+    (document.getElementById('tuyaSaveQrCloud') as HTMLButtonElement).click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(updatePluginConfig).toHaveBeenLastCalledWith([
+      expect.objectContaining({
+        options: expect.objectContaining({
+          projectType: '3',
+          developerCloudFallback: {
+            enabled: true,
+            endpoint: 'https://openapi.tuyain.com',
+            accessId: 'updated-ir-project-id',
+            accessKey: 'ir-project-secret',
+          },
+        }),
+      }),
+    ]);
     (document.querySelector('[data-project-type="1"]') as HTMLButtonElement).click();
     expect(document.getElementById('tuyaQrAccount')?.hidden).toBe(true);
     expect(document.getElementById('tuyaDeveloperAccount')?.hidden).toBe(false);

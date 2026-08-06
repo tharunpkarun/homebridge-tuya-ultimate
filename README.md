@@ -419,10 +419,7 @@ This optional mixed mode keeps QR account-sharing as the primary discovery, comm
       "enabled": true,
       "accessId": "YOUR_ACCESS_ID",
       "accessKey": "YOUR_ACCESS_SECRET",
-      "countryCode": 91,
-      "username": "YOUR_APP_LOGIN",
-      "password": "YOUR_APP_PASSWORD",
-      "appSchema": "tuyaSmart"
+      "endpoint": "https://openapi.tuyain.com"
     },
     "generateWeatherAccessory": false,
     "weatherAPI": "Open-Meteo",
@@ -431,7 +428,7 @@ This optional mixed mode keeps QR account-sharing as the primary discovery, comm
 }
 ```
 
-An optional `endpoint` inside `developerCloudFallback` overrides automatic regional selection. These credentials are stored in Homebridge `config.json`; protect that file. If Tuya returns an unsuccessful secondary login response, the plugin logs it and continues with QR permissions rather than replacing the primary account connection.
+Choose the `endpoint` matching the data center shown on the Tuya Developer Platform project. The secondary connection uses the project's Access ID and Access Secret to obtain a project token; it does not require the app username or password. These credentials are stored in Homebridge `config.json`; protect that file. If Tuya returns an unsuccessful response, the plugin logs it and continues with QR permissions rather than replacing the primary account connection.
 
 ### Configuration with an override
 

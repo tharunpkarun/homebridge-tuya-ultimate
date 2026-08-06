@@ -682,19 +682,19 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
     const requiredValues = [
       fallback.accessId,
       fallback.accessKey,
-      fallback.username,
-      fallback.password,
-      fallback.appSchema,
     ];
+    const hasCountryCode = Number.isInteger(fallback.countryCode) && fallback.countryCode! >= 1;
     if (!requiredValues.every(value => typeof value === 'string' && value.trim().length > 0)
-      || !Number.isInteger(fallback.countryCode) || fallback.countryCode < 1) {
-      this.log.warn('Developer Cloud product-endpoint fallback is enabled but its credentials are incomplete.');
+      || (!fallback.endpoint && !hasCountryCode)) {
+      this.log.warn(
+        'Developer Cloud product access is enabled but its Access ID, Access Secret, or data center is missing.',
+      );
       return;
     }
 
     try {
       const api = new TuyaOpenAPI(
-        fallback.endpoint || TuyaOpenAPI.getDefaultEndpoint(fallback.countryCode),
+        fallback.endpoint || TuyaOpenAPI.getDefaultEndpoint(fallback.countryCode!),
         fallback.accessId,
         fallback.accessKey,
         'en',
@@ -703,26 +703,23 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
         1,
         10_000,
       );
-      const response = await api.homeLogin(
-        fallback.countryCode,
-        fallback.username,
-        fallback.password,
-        fallback.appSchema,
-      );
+      const response = await api.getToken();
       if (!response.success) {
         this.log.warn(
-          'Developer Cloud product-endpoint fallback login failed. code=%s, msg=%s',
+          'Developer Cloud product API authentication failed. code=%s, msg=%s',
           response.code,
           response.msg,
         );
         return;
       }
       primary.setProductApiFallback(new TuyaHomeDeviceManager(api, debugMode));
-      this.log.info('Developer Cloud product-endpoint fallback is active for IR, locks, and cameras.');
-    } catch {
+      this.log.info(
+        'Developer Cloud product API is active for QR-mode IR, locks, and cameras (project-token authentication).',
+      );
+    } catch (error) {
       // This integration is supplemental; QR inventory and live updates must
       // remain available if its endpoint or credentials are temporarily bad.
-      this.log.warn('Developer Cloud product-endpoint fallback could not be initialized.');
+      this.log.warn('Developer Cloud product API could not be initialized: %s', String(error));
     }
   }
 

@@ -120,6 +120,42 @@ function managerWithFallback(productKeys: TuyaIRRemoteKeys, productStatus: Retur
 }
 
 describe('QR IR AC Developer Cloud fallback safety', () => {
+  test('routes resolved AC commands only through the Developer Cloud product API', async () => {
+    const sharingApi = {
+      tokenInfo: { access_token: '', refresh_token: '', uid: 'user-1', expire: Number.MAX_SAFE_INTEGER },
+      get: jest.fn(),
+      post: jest.fn(),
+      postWithQuery: jest.fn(),
+    } as unknown as TuyaSharingAPI;
+    const manager = new TuyaSharingDeviceManager(sharingApi);
+    const fallback = {
+      getInfraredRemotes: jest.fn().mockResolvedValue(success([{
+        category_id: 5,
+        remote_id: 'ir-ac',
+      }])),
+      getInfraredKeys: jest.fn().mockResolvedValue(success(remoteKeys(18, 3))),
+      getInfraredACStatus: jest.fn().mockResolvedValue(success({
+        power: 1,
+        mode: 0,
+        temp: 18,
+        wind: 3,
+      })),
+      sendInfraredACCommands: jest.fn().mockResolvedValue(success(true)),
+    } as unknown as TuyaDeviceManager;
+    manager.setProductApiFallback(fallback);
+    const { remote, devices } = sharingDevices(remoteKeys());
+    manager.devices = devices;
+
+    await manager.updateInfraredRemotes(devices);
+    const response = await manager.sendInfraredACCommands('ir-hub', 'ir-ac', 1, 0, 18, 3);
+
+    expect(response.success).toBe(true);
+    expect(remote.infrared_ac_product_api_resolved).toBe(true);
+    expect(remote.infrared_ac_command_mode).toBeUndefined();
+    expect(fallback.sendInfraredACCommands).toHaveBeenCalledWith('ir-hub', 'ir-ac', 1, 0, 18, 3);
+    expect(sharingApi.postWithQuery).not.toHaveBeenCalled();
+  });
+
   test('restores the sharing key table when product status resolution fails', async () => {
     const nativeKeys = remoteKeys(25, 0);
     const { remote, devices } = sharingDevices(nativeKeys);

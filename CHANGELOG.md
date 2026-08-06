@@ -5,6 +5,7 @@
 ### Added
  - Expose compatible QR-authorized `infrared_ac` virtual remotes as HomeKit thermostats through Tuya's normal device-sharing functions (`PowerOn`, `PowerOff`, `M`, `T`, and `F`) without requiring the blocked product-specific IR APIs.
  - Add per-device Config UI accessory options for visibility, category, bridged/external exposure, and compatible light, garage, and IR AC behavior, with explicit saves and restart guidance.
+ - Add QR-mode Developer Cloud product-access fields to the Config UI so one linked project can supplement QR for IR, lock, and camera APIs.
 
 ### Fixed
  - Build safe mode, temperature, fan, and optimistic one-way status metadata for QR IR air conditioners while preserving the richer Developer Cloud IR path when configured.
@@ -16,6 +17,7 @@
  - Translate virtual IR child MQTT DPs `101`–`104` (`switch_power`, `mode`, `temperature`, and `fan`) into the HomeKit AC state so QR updates replace startup defaults continuously.
  - Initialize IR thermostat heating and cooling thresholds inside their advertised range before narrowing HomeKit's characteristic constraints.
  - Show an initial Config UI loader while stored authorization, homes, and devices are being discovered instead of briefly presenting a false disconnected state.
+ - Authenticate the QR-mode Developer Cloud product connection with the project's Access ID, Access Secret, and data center, matching Home Assistant's project-token flow without requiring app login credentials.
 
 ## [2.7.2] - (2026.8.6)
 

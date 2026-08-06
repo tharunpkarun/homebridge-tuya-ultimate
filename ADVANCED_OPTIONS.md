@@ -106,18 +106,15 @@ The plugin writes owner-only `TuyaEnergyHistory.json` in the Homebridge persist 
       "enabled": true,
       "accessId": "{developer_cloud_access_id}",
       "accessKey": "{developer_cloud_access_secret}",
-      "countryCode": 91,
-      "username": "{app_login}",
-      "password": "{app_password}",
-      "appSchema": "tuyaSmart"
+      "endpoint": "https://openapi.tuyain.com"
     }
   }
 }
 ```
 
-The project must be linked to the app account, use the correct region, and have the relevant IR Control Hub, Smart Lock, or IoT Video API subscription. An optional `endpoint` can override automatic regional selection. When the secondary login succeeds, product-specific IR metadata/commands, lock operations, and camera RTSP allocation use it. Homes, devices, standard commands, and MQTT live updates remain on the QR connection. An unsuccessful Tuya login response is logged and leaves only the primary QR permissions active.
+The project must be linked to the app account, use the correct data-center endpoint, and have the relevant IR Control Hub, Smart Lock, or IoT Video API subscription. The secondary connection authenticates with a Tuya project token, matching the Tuya Smart IR AC Home Assistant integration; it does not use the app username or password. When authentication succeeds, product-specific IR metadata/commands, lock operations, and camera RTSP allocation use it. Homes, devices, standard commands, and QR MQTT live updates remain on the QR connection. An unsuccessful Tuya response is logged and leaves only the primary QR permissions active.
 
-These credentials—including the app password and Access Secret—are stored in Homebridge `config.json`. Restrict access to that file and never include this block in an issue report.
+The Access Secret is stored in Homebridge `config.json`. Restrict access to that file and never include this block in an issue report.
 
 ### Beta Tuya LAN 3.3 command routing
 

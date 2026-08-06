@@ -1,6 +1,8 @@
 import { API, Logger, PlatformConfig } from 'homebridge';
 
+import { TuyaPlatformAccountConfigOptions } from '../src/config';
 import { TuyaSharingRequestError } from '../src/core/TuyaSharingAPI';
+import TuyaOpenAPI from '../src/core/TuyaOpenAPI';
 import TuyaDevice from '../src/device/TuyaDevice';
 import TuyaDeviceManager from '../src/device/TuyaDeviceManager';
 import { TuyaPlatform } from '../src/platform';
@@ -198,5 +200,43 @@ describe('Tuya platform startup resilience', () => {
     platform.addAccessory(device);
 
     expect(device.infrared_ac_local_ip).toBe('192.168.1.50');
+  });
+
+  test('authenticates the QR product API with a Developer Cloud project token', async () => {
+    const { platform, log } = createPlatform();
+    (platform.options as TuyaPlatformAccountConfigOptions).developerCloudFallback = {
+      enabled: true,
+      endpoint: 'https://openapi.tuyain.com',
+      accessId: 'project-access-id',
+      accessKey: 'project-access-secret',
+    };
+    const primary = {
+      setProductApiFallback: jest.fn(),
+    } as unknown as TuyaDeviceManager;
+    const getToken = jest.spyOn(TuyaOpenAPI.prototype, 'getToken').mockResolvedValue({
+      success: true,
+      result: {
+        access_token: 'project-token',
+        refresh_token: 'refresh-token',
+        uid: 'project-uid',
+        expire_time: 7200,
+      },
+      t: Date.now(),
+      tid: 'test',
+    });
+    const homeLogin = jest.spyOn(TuyaOpenAPI.prototype, 'homeLogin');
+
+    await (platform as unknown as {
+      configureDeveloperCloudFallback(manager: TuyaDeviceManager, debug: boolean): Promise<void>;
+    }).configureDeveloperCloudFallback(primary, false);
+
+    expect(getToken).toHaveBeenCalledTimes(1);
+    expect(homeLogin).not.toHaveBeenCalled();
+    expect(primary.setProductApiFallback).toHaveBeenCalledWith(expect.any(TuyaDeviceManager));
+    expect(log.info).toHaveBeenCalledWith(
+      'Developer Cloud product API is active for QR-mode IR, locks, and cameras (project-token authentication).',
+    );
+    getToken.mockRestore();
+    homeLogin.mockRestore();
   });
 });

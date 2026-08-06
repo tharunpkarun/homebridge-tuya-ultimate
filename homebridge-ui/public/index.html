@@ -399,6 +399,28 @@
           <button id="tuyaCheckAccount" class="tuya-button" type="button">Check authorization</button>
         </div>
         <div id="tuyaAuthStatus" class="tuya-callout tuya-mt-12">Enter the User Code, then generate a QR code.</div>
+        <div class="tuya-section-header tuya-mt-13">
+          <div><span class="tuya-eyebrow">Optional product authorization</span><h3>Developer Cloud product access</h3><div class="tuya-subtitle">Keep QR login for ordinary accessories and add one linked Tuya project for product APIs that QR does not grant.</div></div>
+          <button id="tuyaSaveQrCloud" class="tuya-button tuya-button-primary" type="button">Save product access</button>
+        </div>
+        <label class="tuya-check tuya-mb-12"><input id="tuyaQrCloudEnabled" type="checkbox"><span><strong>Use Developer Cloud for IR, lock, and camera product APIs</strong><br><span class="tuya-help">Enable the applicable IR Control Hub, Smart Lock, or IoT Video services on one project linked to this app account.</span></span></label>
+        <div id="tuyaQrCloudFields" class="tuya-form-grid">
+          <div class="tuya-field">
+            <label for="tuyaQrCloudEndpoint">Project data center</label>
+            <select id="tuyaQrCloudEndpoint" class="tuya-input">
+              <option value="">Select the project data center</option>
+              <option value="https://openapi.tuyaeu.com">Europe</option>
+              <option value="https://openapi.tuyaus.com">America</option>
+              <option value="https://openapi.tuyain.com">India</option>
+              <option value="https://openapi.tuyacn.com">China</option>
+              <option value="https://openapi-sg.iotbing.com">Singapore</option>
+            </select>
+            <span class="tuya-help">Choose the data center shown on the Tuya Developer Platform project.</span>
+          </div>
+          <div class="tuya-field"><label for="tuyaQrCloudAccessId">Access ID</label><input id="tuyaQrCloudAccessId" class="tuya-input tuya-mono" type="text" autocomplete="off"></div>
+          <div class="tuya-field"><label for="tuyaQrCloudAccessKey">Access Secret</label><input id="tuyaQrCloudAccessKey" class="tuya-input tuya-mono" type="password" autocomplete="new-password"></div>
+        </div>
+        <div class="tuya-callout tuya-mt-12">This one secondary connection is shared by all linked accessories. Ordinary device discovery, commands, and updates remain on QR, and no Smart Life or Tuya Smart password is required.</div>
       </div>
 
       <div id="tuyaQrPanel" class="tuya-section" hidden>
@@ -1484,6 +1506,11 @@
       byId('tuyaDeveloperApp').value = value.appSchema || 'tuyaSmart'
       byId('tuyaUsername').value = value.username || ''
       byId('tuyaPassword').value = value.password || ''
+      byId('tuyaQrCloudEnabled').checked = value.developerCloudFallback?.enabled === true
+      byId('tuyaQrCloudEndpoint').value = value.developerCloudFallback?.endpoint || ''
+      byId('tuyaQrCloudAccessId').value = value.developerCloudFallback?.accessId || ''
+      byId('tuyaQrCloudAccessKey').value = value.developerCloudFallback?.accessKey || ''
+      syncDeveloperCloudFallbackControls()
       byId('tuyaManualHomes').value = Array.isArray(value.homeWhitelist) ? value.homeWhitelist.join('\n') : ''
       byId('tuyaPlatformName').value = platform.name || 'Tuya'
       byId('tuyaWeather').checked = value.generateWeatherAccessory === true
@@ -1503,6 +1530,11 @@
       if (value.projectType === '3') {
         value.appSchema = byId('tuyaAppSchema').value
         value.userCode = byId('tuyaUserCode').value.trim()
+        value.developerCloudFallback ||= {}
+        value.developerCloudFallback.enabled = byId('tuyaQrCloudEnabled').checked
+        value.developerCloudFallback.endpoint = byId('tuyaQrCloudEndpoint').value || undefined
+        value.developerCloudFallback.accessId = byId('tuyaQrCloudAccessId').value.trim()
+        value.developerCloudFallback.accessKey = byId('tuyaQrCloudAccessKey').value
       } else {
         value.endpoint = byId('tuyaEndpoint').value.trim() || undefined
         value.accessId = byId('tuyaAccessId').value.trim()
@@ -1536,6 +1568,12 @@
     function validateAccount() {
       const value = options()
       if (value.projectType === '3' && !value.userCode) throw new Error('Enter the User Code from the selected Tuya app.')
+      if (value.projectType === '3' && value.developerCloudFallback?.enabled
+        && (!value.developerCloudFallback.endpoint
+          || !value.developerCloudFallback.accessId
+          || !value.developerCloudFallback.accessKey)) {
+        throw new Error('Select the Developer Cloud data center and enter its Access ID and Access Secret.')
+      }
       if ((value.projectType === '1' || value.projectType === '2') && (!value.accessId || !value.accessKey)) throw new Error('Access ID and Access Secret are required.')
       if (value.projectType === '1' && !value.endpoint) throw new Error('A cloud endpoint is required for a Custom project.')
       if (value.projectType === '2' && (!value.countryCode || !value.username || !value.password)) throw new Error('Country code, app username, and app password are required for a Tuya Developer Cloud project.')
@@ -1547,6 +1585,11 @@
       const enabled = byId('tuyaEnergyHistoryEnabled').checked
       byId('tuyaEnergyRetentionDays').disabled = !enabled
       byId('tuyaEnergySampleMinutes').disabled = !enabled
+    }
+
+    function syncDeveloperCloudFallbackControls() {
+      const enabled = byId('tuyaQrCloudEnabled').checked
+      byId('tuyaQrCloudFields').querySelectorAll('input, select').forEach(field => { field.disabled = !enabled })
     }
 
     async function savePlatform(message = 'Configuration saved. Restart Homebridge to apply accessory changes.') {
@@ -1788,9 +1831,11 @@
     byId('tuyaRegenerateQr').addEventListener('click', startQrLogin)
     byId('tuyaCancelQr').addEventListener('click', () => { stopPolling(); byId('tuyaQrPanel').hidden = true; homebridge.fixScrollHeight() })
     byId('tuyaSaveAccount').addEventListener('click', () => savePlatform().catch(error => homebridge.toast.error(errorMessage(error), 'Could not save account settings')))
+    byId('tuyaSaveQrCloud').addEventListener('click', () => savePlatform().catch(error => homebridge.toast.error(errorMessage(error), 'Could not save Developer Cloud product access')))
     byId('tuyaSaveHomes').addEventListener('click', () => savePlatform().then(() => refreshAccount(false)).catch(error => homebridge.toast.error(errorMessage(error), 'Could not save home selection')))
     byId('tuyaSaveSettings').addEventListener('click', () => savePlatform().catch(error => homebridge.toast.error(errorMessage(error), 'Could not save settings')))
     byId('tuyaEnergyHistoryEnabled').addEventListener('change', syncEnergyHistoryControls)
+    byId('tuyaQrCloudEnabled').addEventListener('change', syncDeveloperCloudFallbackControls)
     byId('tuyaToggleSchema').addEventListener('click', toggleSchema)
     byId('tuyaCopySupportBundle').addEventListener('click', copySupportBundle)
     byId('tuyaDownloadSupportBundle').addEventListener('click', downloadSupportBundle)

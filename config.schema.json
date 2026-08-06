@@ -149,27 +149,29 @@
                         }
                     },
                     "developerCloudFallback": {
-                        "title": "Developer Cloud Product Endpoint Fallback",
-                        "description": "Optional QR-mode fallback for IR, lock, and camera endpoints that Tuya does not grant to the sharing identity.",
+                        "title": "Developer Cloud Product API",
+                        "description": "Optional secondary project-token connection in QR mode for IR, lock, and camera product APIs. Use the Access ID, Access Secret, and data center from the linked Tuya Developer Platform project.",
                         "type": "object",
                         "properties": {
-                            "enabled": { "title": "Enable Fallback", "type": "boolean", "default": false },
-                            "endpoint": { "title": "Endpoint URL", "type": "string", "format": "url" },
+                            "enabled": { "title": "Enable Product API", "type": "boolean", "default": false },
+                            "endpoint": { "title": "Data Center Endpoint URL", "type": "string", "format": "url" },
                             "accessId": { "title": "Access ID", "type": "string" },
                             "accessKey": {
                                 "title": "Access Secret",
                                 "type": "string",
                                 "x-schema-form": { "type": "password" }
                             },
-                            "countryCode": { "title": "Country Code", "type": "integer", "minimum": 1 },
-                            "username": { "title": "App Username", "type": "string" },
+                            "countryCode": { "title": "Legacy Country Code", "description": "Used only to infer a data center when Endpoint URL is empty.", "type": "integer", "minimum": 1 },
+                            "username": { "title": "Legacy App Username", "description": "No longer used by project-token authentication.", "type": "string" },
                             "password": {
-                                "title": "App Password",
+                                "title": "Legacy App Password",
+                                "description": "No longer used by project-token authentication.",
                                 "type": "string",
                                 "x-schema-form": { "type": "password" }
                             },
                             "appSchema": {
-                                "title": "App",
+                                "title": "Legacy App",
+                                "description": "No longer used by project-token authentication.",
                                 "type": "string",
                                 "default": "tuyaSmart",
                                 "enum": ["tuyaSmart", "smartlife"]
