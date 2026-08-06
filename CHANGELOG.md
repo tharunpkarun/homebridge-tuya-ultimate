@@ -19,6 +19,7 @@
  - Initialize IR thermostat heating and cooling thresholds inside their advertised range before narrowing HomeKit's characteristic constraints.
  - Show an initial Config UI loader while stored authorization, homes, and devices are being discovered instead of briefly presenting a false disconnected state.
  - Authenticate the QR-mode Developer Cloud product connection with the project's Access ID, Access Secret, and data center, matching Home Assistant's project-token flow without requiring app login credentials.
+ - Restore saved Developer Cloud product fields when Homebridge returns the `configChanged` payload as a configuration array, and preserve an existing Access Secret when a revision form leaves the password input blank.
 
 ## [2.7.2] - (2026.8.6)
 

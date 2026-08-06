@@ -615,6 +615,12 @@
       return platform.options
     }
 
+    function platformFromConfigPayload(payload) {
+      const configs = Array.isArray(payload) ? payload : [payload]
+      return configs.find(config => config?.platform === 'TuyaPlatform')
+        || configs.find(config => config && typeof config === 'object' && config.options)
+    }
+
     function ensureDefaults() {
       platform.platform ||= 'TuyaPlatform'
       platform.name ||= 'Tuya'
@@ -1529,6 +1535,7 @@
       byId('tuyaUsername').value = value.username || ''
       byId('tuyaPassword').value = value.password || ''
       byId('tuyaQrCloudEnabled').checked = value.developerCloudFallback?.enabled === true
+        || value.developerCloudFallback?.enabled === 'true'
       byId('tuyaQrCloudEndpoint').value = value.developerCloudFallback?.endpoint || ''
       byId('tuyaQrCloudAccessId').value = value.developerCloudFallback?.accessId || ''
       byId('tuyaQrCloudAccessKey').value = value.developerCloudFallback?.accessKey || ''
@@ -1556,7 +1563,10 @@
         value.developerCloudFallback.enabled = byId('tuyaQrCloudEnabled').checked
         value.developerCloudFallback.endpoint = byId('tuyaQrCloudEndpoint').value || undefined
         value.developerCloudFallback.accessId = byId('tuyaQrCloudAccessId').value.trim()
-        value.developerCloudFallback.accessKey = byId('tuyaQrCloudAccessKey').value
+        const productAccessKey = byId('tuyaQrCloudAccessKey').value
+        if (productAccessKey || !value.developerCloudFallback.accessKey) {
+          value.developerCloudFallback.accessKey = productAccessKey
+        }
       } else {
         value.endpoint = byId('tuyaEndpoint').value.trim() || undefined
         value.accessId = byId('tuyaAccessId').value.trim()
@@ -1915,14 +1925,14 @@
           homebridge.request('/about'),
           homebridge.request('/sharing/accounts'),
         ])
-        platform = configs[0] || platform
+        platform = platformFromConfigPayload(configs) || platform
         about = packageInfo || {}
         storedAccounts = Array.isArray(storedAccountResponse?.accounts) ? storedAccountResponse.accounts : []
         ensureDefaults()
         syncFormsFromConfig()
         renderAll()
         homebridge.addEventListener('configChanged', event => {
-          platform = event.data || platform
+          platform = platformFromConfigPayload(event.data) || platform
           ensureDefaults()
           syncFormsFromConfig()
           renderAll()

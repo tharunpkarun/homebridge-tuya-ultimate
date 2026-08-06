@@ -506,6 +506,31 @@ describe('Homebridge custom UI', () => {
         }),
       }),
     ]);
+    const productSaveCall = updatePluginConfig.mock.calls[updatePluginConfig.mock.calls.length - 1] as unknown as [unknown[]];
+    const savedProductPlatform = productSaveCall[0][0];
+    await Promise.all((listeners.get('configChanged') || []).map(listener => listener({
+      data: [savedProductPlatform],
+    })));
+    expect((document.getElementById('tuyaQrCloudEnabled') as HTMLInputElement).checked).toBe(true);
+    expect((document.getElementById('tuyaQrCloudEndpoint') as HTMLSelectElement).value)
+      .toBe('https://openapi.tuyain.com');
+    expect((document.getElementById('tuyaQrCloudAccessId') as HTMLInputElement).value)
+      .toBe('updated-ir-project-id');
+    expect((document.getElementById('tuyaQrCloudAccessKey') as HTMLInputElement).value)
+      .toBe('ir-project-secret');
+    (document.getElementById('tuyaQrCloudAccessKey') as HTMLInputElement).value = '';
+    (document.getElementById('tuyaSaveQrCloud') as HTMLButtonElement).click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(updatePluginConfig).toHaveBeenLastCalledWith([
+      expect.objectContaining({
+        options: expect.objectContaining({
+          developerCloudFallback: expect.objectContaining({
+            enabled: true,
+            accessKey: 'ir-project-secret',
+          }),
+        }),
+      }),
+    ]);
     (document.querySelector('[data-project-type="1"]') as HTMLButtonElement).click();
     expect(document.getElementById('tuyaQrAccount')?.hidden).toBe(true);
     expect(document.getElementById('tuyaDeveloperAccount')?.hidden).toBe(false);
