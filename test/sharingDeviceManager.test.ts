@@ -261,6 +261,19 @@ describe('Tuya account-sharing device manager', () => {
       success: true,
       result: { power: false, mode: 0, temp: 25, wind: 0 },
     });
+    await deviceManager.onMQTTMessage('device/topic', 4, {
+      devId: 'ir-ac',
+      status: [
+        { dpId: 101, value: true },
+        { dpId: 102, value: '1' },
+        { dpId: 103, value: 22 },
+        { dpId: 104, value: '2' },
+      ],
+    });
+    await expect(deviceManager.getInfraredACStatus('', 'ir-ac')).resolves.toMatchObject({
+      success: true,
+      result: { power: 1, mode: 1, temp: 22, wind: 2 },
+    });
     await deviceManager.sendInfraredACCommands('', 'ir-ac', 1, 0, 25, 0);
     expect(postWithQuery).toHaveBeenLastCalledWith(
       '/v1.1/m/thing/ir-ac/commands',

@@ -664,6 +664,14 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       return super.onMQTTMessage(topic, protocol, { ...message, status: physicalUpdates });
     }
 
+    if (device.category === 'infrared_ac' && device.infrared_ac_command_mode === 'device-sharing') {
+      const infraredStatus = sharingInfraredACStatus(message.status);
+      return super.onMQTTMessage(topic, protocol, {
+        ...message,
+        status: mergeStatusUpdates(normalized, infraredStatus),
+      });
+    }
+
     return super.onMQTTMessage(topic, protocol, { ...message, status: normalized });
   }
 
@@ -1116,6 +1124,50 @@ function directInfraredThermostatDPs(status: RawDevice[]): Record<string, unknow
     }
   }
   return dps;
+}
+
+function sharingInfraredACStatus(status: RawDevice[]): TuyaDeviceStatus[] {
+  const updates = new Map<string, TuyaDeviceStatus>();
+  const codeByDP: Record<number, string> = {
+    101: 'power',
+    102: 'mode',
+    103: 'temp',
+    104: 'wind',
+  };
+  const codeAliases: Record<string, string> = {
+    power: 'power',
+    switch_power: 'power',
+    mode: 'mode',
+    temp: 'temp',
+    temperature: 'temp',
+    wind: 'wind',
+    fan: 'wind',
+  };
+
+  for (const item of status) {
+    if (!item || typeof item !== 'object' || !('value' in item)) {
+      continue;
+    }
+    const dpID = Number(item.dpId);
+    const code = codeByDP[dpID] ?? codeAliases[String(item.code ?? '')];
+    if (!code) {
+      continue;
+    }
+    if (code === 'power') {
+      updates.set(code, { code, value: directThermostatPower(item.value) });
+      continue;
+    }
+    const value = Number(item.value);
+    if (!Number.isFinite(value)) {
+      continue;
+    }
+    if ((code === 'mode' && value >= 0 && value <= 4)
+      || (code === 'temp' && value >= 16 && value <= 30)
+      || (code === 'wind' && value >= 0 && value <= 3)) {
+      updates.set(code, { code, value });
+    }
+  }
+  return [...updates.values()];
 }
 
 function numericSchemaValues(device: TuyaDevice, codes: string[], fallback: number[]): number[] {
