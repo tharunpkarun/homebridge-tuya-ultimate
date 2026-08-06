@@ -316,36 +316,19 @@ describe('Tuya account-sharing device manager', () => {
         return success([
           {
             id: 'ir-hub', name: 'IR Thermostat', owner_id: 'home-1',
-            product_id: 'aqlyorlybbtn6ox7', product_name: 'IR Thermostat',
+            product_id: 'unlisted-ir-thermostat', product_name: 'IR Thermostat',
             category: 'hwktwkq', status: [], sub: false,
           },
           {
             id: 'ir-ac', name: 'Bedroom AC', owner_id: 'home-1',
             product_id: 'qzktzhehinzsz2je', product_name: 'Air Conditioning',
             category: 'infrared_ac', status: [], sub: true, set_up: false,
-            parent: 'ir-hub', mapping: infraredMapping,
+            mapping: infraredMapping,
           },
         ]);
       }
       if (path.endsWith('/specifications')) {
         return success({ functions: [], status: [] });
-      }
-      if (path === '/v1.0/m/life/devices/ir-hub/status') {
-        return success({
-          productKey: 'aqlyorlybbtn6ox7',
-          dpStatusRelationDTOS: [
-            { dpId: 1, supportLocal: false, valueConvert: 'default', statusCode: 'switch' },
-            { dpId: 3, supportLocal: false, valueConvert: 'default', statusCode: 'temp_set' },
-            { dpId: 4, supportLocal: false, valueConvert: 'default', statusCode: 'mode' },
-            { dpId: 5, supportLocal: false, valueConvert: 'default', statusCode: 'fan_speed_enum' },
-          ].map(item => ({
-            ...item,
-            statusFormat: '{}',
-            valueDesc: '{}',
-            valueType: 'Raw',
-            enumMappingMap: {},
-          })),
-        });
       }
       if (path.endsWith('/status')) {
         return success({ productKey: 'product', dpStatusRelationDTOS: [] });
@@ -402,7 +385,7 @@ describe('Tuya account-sharing device manager', () => {
     expect(airConditioner.remote_keys?.key_range).not.toHaveLength(0);
     expect(get).not.toHaveBeenCalledWith(expect.stringMatching(/^\/v2\.0\/infrareds\//));
 
-    await expect(deviceManager.sendInfraredACCommands('ir-hub', 'ir-ac', 1, 1, 23, 2))
+    await expect(deviceManager.sendInfraredACCommands(airConditioner.parent_id!, 'ir-ac', 1, 1, 23, 2))
       .resolves.toMatchObject({ success: true });
     expect(postWithQuery).toHaveBeenNthCalledWith(
       1,
