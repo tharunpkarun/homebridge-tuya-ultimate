@@ -34,9 +34,9 @@ function credentials(overrides: Partial<TuyaSharingCredentials['token_info']> = 
   };
 }
 
-function jsonResponse(body: unknown): Response {
+function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
-    status: 200,
+    status,
     headers: { 'content-type': 'application/json' },
   });
 }
@@ -90,6 +90,112 @@ describe('Tuya account-sharing crypto', () => {
       'X-token': 'access-token-example',
       'X-sign': VECTOR.sign,
     });
+  });
+
+  test('retries a transient GET failure with an IPv4 dispatcher', async () => {
+    const fetchMock = jest.fn()
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValueOnce(jsonResponse({ success: true, result: { ok: true } }))
+      .mockResolvedValueOnce(jsonResponse({ success: true, result: { ok: true } }));
+    const retryDelay = jest.fn(async () => undefined);
+    const onRequestRetry = jest.fn();
+    let requestNumber = 0;
+    const api = new TuyaSharingAPI({
+      credentials: credentials(),
+      fetch: fetchMock,
+      now: () => 1_785_067_200_123,
+      requestId: () => `retry-request-${++requestNumber}`,
+      nonce: () => VECTOR.nonce,
+      requestAttempts: 3,
+      retryDelay,
+      onRequestRetry,
+    });
+
+    await expect(api.get('/v1.0/test')).resolves.toMatchObject({
+      success: true,
+      result: { ok: true },
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const firstInit = fetchMock.mock.calls[0][1] as RequestInit & { dispatcher?: unknown };
+    const secondInit = fetchMock.mock.calls[1][1] as RequestInit & { dispatcher?: unknown };
+    expect(firstInit.dispatcher).toBeUndefined();
+    expect(secondInit.dispatcher).toBeDefined();
+    expect(firstInit.headers).toMatchObject({ 'X-requestId': 'retry-request-1' });
+    expect(secondInit.headers).toMatchObject({ 'X-requestId': 'retry-request-2' });
+    expect(retryDelay).toHaveBeenCalledWith(250);
+    expect(onRequestRetry).toHaveBeenCalledWith(expect.any(TypeError), 1, 3, 250);
+
+    await api.get('/v1.0/next');
+    const nextInit = fetchMock.mock.calls[2][1] as RequestInit & { dispatcher?: unknown };
+    expect(nextInit.dispatcher).toBeDefined();
+  });
+
+  test('uses IPv4 on the first attempt when forceIPv4 is enabled', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      jsonResponse({ success: true, result: { ok: true } }),
+    );
+    const api = new TuyaSharingAPI({
+      credentials: credentials(),
+      fetch: fetchMock,
+      forceIPv4: true,
+      now: () => 1_785_067_200_123,
+    });
+
+    await api.get('/v1.0/test');
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit & { dispatcher?: unknown };
+    expect(init.dispatcher).toBeDefined();
+  });
+
+  test('does not retry a non-retryable HTTP response', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      jsonResponse({ success: false, code: 400, msg: 'bad request' }, 400),
+    );
+    const retryDelay = jest.fn(async () => undefined);
+    const api = new TuyaSharingAPI({
+      credentials: credentials(),
+      fetch: fetchMock,
+      now: () => 1_785_067_200_123,
+      requestAttempts: 3,
+      retryDelay,
+    });
+
+    await expect(api.get('/v1.0/test')).rejects.toThrow('HTTP 400');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(retryDelay).not.toHaveBeenCalled();
+  });
+
+  test('does not retry commands after an ambiguous transport failure', async () => {
+    const fetchMock = jest.fn().mockRejectedValue(new TypeError('fetch failed'));
+    const retryDelay = jest.fn(async () => undefined);
+    const api = new TuyaSharingAPI({
+      credentials: credentials(),
+      fetch: fetchMock,
+      now: () => 1_785_067_200_123,
+      requestAttempts: 3,
+      retryDelay,
+    });
+
+    await expect(api.post('/v1.0/test', { enabled: true })).rejects.toThrow('fetch failed');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(retryDelay).not.toHaveBeenCalled();
+  });
+
+  test('stops after the configured number of GET attempts', async () => {
+    const fetchMock = jest.fn().mockRejectedValue(new TypeError('fetch failed'));
+    const retryDelay = jest.fn(async () => undefined);
+    const api = new TuyaSharingAPI({
+      credentials: credentials(),
+      fetch: fetchMock,
+      now: () => 1_785_067_200_123,
+      requestAttempts: 2,
+      retryDelay,
+    });
+
+    await expect(api.get('/v1.0/test')).rejects.toThrow('fetch failed');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(retryDelay).toHaveBeenCalledTimes(1);
   });
 
   test('shares one refresh operation between concurrent requests and persists the result', async () => {

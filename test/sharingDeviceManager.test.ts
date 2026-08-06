@@ -1,4 +1,4 @@
-import TuyaSharingAPI from '../src/core/TuyaSharingAPI';
+import TuyaSharingAPI, { TuyaSharingRequestError } from '../src/core/TuyaSharingAPI';
 import TuyaDeviceManager from '../src/device/TuyaDeviceManager';
 import TuyaSharingDeviceManager from '../src/device/TuyaSharingDeviceManager';
 
@@ -123,6 +123,47 @@ describe('Tuya account-sharing device manager', () => {
 
     expect(device.online).toBe(true);
     expect(listener).toHaveBeenCalledWith(device, expect.objectContaining({ devId: 'device-1' }));
+  });
+
+  test('rejects an incomplete multi-home device inventory', async () => {
+    const get = jest.fn().mockImplementation(async (path: string, params?: Record<string, unknown>) => {
+      if (path === '/v1.0/m/life/ha/home/devices' && params?.homeId === 'home-1') {
+        return success([]);
+      }
+      if (path === '/v1.0/m/life/ha/home/devices' && params?.homeId === 'home-2') {
+        return { success: false as const, code: 500, msg: 'temporary', result: undefined };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+    const api = {
+      tokenInfo: { access_token: '', refresh_token: '', uid: 'user-1', expire: Number.MAX_SAFE_INTEGER },
+      get,
+      post: jest.fn(),
+      postWithQuery: jest.fn(),
+    } as unknown as TuyaSharingAPI;
+    const deviceManager = new TuyaSharingDeviceManager(api);
+
+    await expect(deviceManager.updateDevices(['home-1', 'home-2']))
+      .rejects.toBeInstanceOf(TuyaSharingRequestError);
+    expect(deviceManager.devices).toEqual([]);
+  });
+
+  test('rejects a failed scene inventory instead of deleting cached scenes', async () => {
+    const api = {
+      tokenInfo: { access_token: '', refresh_token: '', uid: 'user-1', expire: Number.MAX_SAFE_INTEGER },
+      get: jest.fn().mockResolvedValue({
+        success: false as const,
+        code: 500,
+        msg: 'temporary',
+        result: undefined,
+      }),
+      post: jest.fn(),
+      postWithQuery: jest.fn(),
+    } as unknown as TuyaSharingAPI;
+    const deviceManager = new TuyaSharingDeviceManager(api);
+
+    await expect(deviceManager.getSceneList('home-1'))
+      .rejects.toBeInstanceOf(TuyaSharingRequestError);
   });
 
   test('omits IR remotes when the QR account cannot resolve their metadata and commands', async () => {

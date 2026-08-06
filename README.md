@@ -350,7 +350,7 @@ The Homebridge settings UI is the recommended configuration method because it ge
 | `energyHistory.enabled` | `false` | Persist allowlisted observed energy metrics locally |
 | `generateWeatherAccessory` | `false` | Create a virtual weather accessory |
 | `weatherAPI` | `"Open-Meteo"` | Weather source when the virtual accessory is enabled |
-| `forceIPv4` | `false` | Force IPv4 for legacy OpenAPI connections |
+| `forceIPv4` | `false` | Force IPv4 for QR account and Developer Cloud requests |
 | `debug` | `false` | Enable additional diagnostic logging |
 | `debugLevel` | all enabled scopes | Optional comma-separated scopes; use `api` for transport/manager diagnostics or a device ID for accessory diagnostics |
 

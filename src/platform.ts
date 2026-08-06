@@ -16,7 +16,7 @@ import BaseAccessory from './accessory/BaseAccessory';
 import { sanitizeName } from './util/util';
 import TuyaOpenAPI, { LOGIN_ERROR_MESSAGES } from './core/TuyaOpenAPI';
 import { initLogger } from './util/Logger';
-import TuyaSharingAPI from './core/TuyaSharingAPI';
+import TuyaSharingAPI, { TuyaSharingRequestError } from './core/TuyaSharingAPI';
 import {
   DEFAULT_CLIENT_ID,
   legacySharingCredentialFile,
@@ -27,6 +27,9 @@ import EnergyHistoryStore from './energy/EnergyHistoryStore';
 import TuyaLocalCommandRouter from './local/TuyaLocalCommandRouter';
 import AccessoryBackupStore from './migration/AccessoryBackupStore';
 import RuntimeDiagnosticsStore from './diagnostics/RuntimeDiagnosticsStore';
+
+const ACCOUNT_DISCOVERY_RETRY_BASE_MS = 15_000;
+const ACCOUNT_DISCOVERY_RETRY_MAX_MS = 120_000;
 
 
 /**
@@ -47,6 +50,11 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
   public accessoryHandlers: BaseAccessory[] = [];
   public energyHistory?: EnergyHistoryStore;
   public runtimeDiagnostics?: RuntimeDiagnosticsStore;
+
+  private deviceInitializationInProgress = false;
+  private accountDiscoveryRetryTimer?: NodeJS.Timeout;
+  private accountDiscoveryFailureCount = 0;
+  private shuttingDown = false;
 
   validate() {
     let result;
@@ -141,12 +149,17 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
     // Dynamic Platform plugins should only register new accessories after this event was fired,
     // in order to ensure they weren't added to homebridge already. This event can also be used
     // to start discovery of new accessories.
-    this.api.on('didFinishLaunching', async () => {
+    this.api.on('didFinishLaunching', () => {
       this.log.debug('Executed didFinishLaunching callback');
       // run the method to discover / register your devices as accessories
-      await this.initDevices();
+      this.startDeviceInitialization();
     });
     this.api.on('shutdown', async () => {
+      this.shuttingDown = true;
+      if (this.accountDiscoveryRetryTimer) {
+        clearTimeout(this.accountDiscoveryRetryTimer);
+        this.accountDiscoveryRetryTimer = undefined;
+      }
       this.deviceManager?.stop();
       const writes = [
         this.energyHistory?.flush(),
@@ -154,6 +167,48 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       ].filter((write): write is Promise<void> => write !== undefined);
       await Promise.allSettled(writes);
     });
+  }
+
+  private startDeviceInitialization() {
+    if (this.shuttingDown || this.deviceInitializationInProgress) {
+      return;
+    }
+    this.deviceInitializationInProgress = true;
+    void this.initDevices()
+      .then(() => {
+        this.accountDiscoveryFailureCount = 0;
+      })
+      .catch(error => {
+        const message = error instanceof Error ? error.message : String(error);
+        const shouldRetry = error instanceof TuyaSharingRequestError && error.retryable;
+        if (this.options.projectType !== '3' || this.shuttingDown || !shouldRetry) {
+          this.log.error('Tuya device discovery failed: %s', message);
+          return;
+        }
+
+        this.deviceManager?.stop();
+        this.deviceManager = undefined;
+        const delayMs = Math.min(
+          ACCOUNT_DISCOVERY_RETRY_BASE_MS * 2 ** this.accountDiscoveryFailureCount,
+          ACCOUNT_DISCOVERY_RETRY_MAX_MS,
+        );
+        this.accountDiscoveryFailureCount += 1;
+        this.log.error(
+          'Tuya account discovery failed: %s. Retrying in %d seconds without stopping the child bridge.',
+          message,
+          delayMs / 1_000,
+        );
+        if (!this.accountDiscoveryRetryTimer) {
+          this.accountDiscoveryRetryTimer = setTimeout(() => {
+            this.accountDiscoveryRetryTimer = undefined;
+            this.startDeviceInitialization();
+          }, delayMs);
+          this.accountDiscoveryRetryTimer.unref();
+        }
+      })
+      .finally(() => {
+        this.deviceInitializationInProgress = false;
+      });
   }
 
   /**
@@ -172,6 +227,9 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
    * must not be registered again to prevent "duplicate UUID" errors.
    */
   async initDevices() {
+    if (this.shuttingDown) {
+      return;
+    }
 
     let devices: TuyaDevice[] | undefined;
     if (this.options.projectType === '1') {
@@ -185,6 +243,11 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
     }
 
     if (!devices || !this.deviceManager) {
+      return;
+    }
+    if (this.shuttingDown) {
+      this.deviceManager.stop();
+      this.deviceManager = undefined;
       return;
     }
 
@@ -212,6 +275,11 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
     // one of its virtual remotes; applying overrides first would make the hub
     // undiscoverable and leave the remote without its parent, keys or state.
     await this.deviceManager.updateInfraredRemotes(devices);
+    if (this.shuttingDown) {
+      this.deviceManager.stop();
+      this.deviceManager = undefined;
+      return;
+    }
 
     // override device category
     for (const device of devices) {
@@ -240,6 +308,11 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       await fs.promises.mkdir(this.api.user.persistPath());
     }
     await fs.promises.writeFile(file, JSON.stringify(devices, null, 2));
+    if (this.shuttingDown) {
+      this.deviceManager.stop();
+      this.deviceManager = undefined;
+      return;
+    }
 
     // add accessories
     for (const device of devices) {
@@ -259,6 +332,11 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       const backupStore = new AccessoryBackupStore(this.api.user.persistPath());
       const backupFile = await backupStore.backup(this.cachedAccessories, 'stale-accessory-cleanup');
       this.log.info('Saved stale accessory backup at %s', backupFile);
+    }
+    if (this.shuttingDown) {
+      this.deviceManager.stop();
+      this.deviceManager = undefined;
+      return;
     }
 
     // remove unused accessories
@@ -525,6 +603,16 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       && ((options.debugLevel ?? '').length === 0 || options.debugLevel!.includes('api'));
     const api = new TuyaSharingAPI({
       credentials,
+      forceIPv4: options.forceIPv4,
+      onRequestRetry: (error, attempt, maxAttempts, delayMs) => {
+        this.log.warn(
+          'Tuya account request failed: %s. Retrying over IPv4 (attempt %d/%d) in %d ms.',
+          error.message,
+          attempt + 1,
+          maxAttempts,
+          delayMs,
+        );
+      },
       onTokenUpdate: async token => {
         credentials.token_info = token;
         await store.save(credentials);
@@ -536,8 +624,10 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
     this.log.info('Fetching Tuya account home list.');
     const homeResponse = await deviceManager.getHomeList();
     if (!homeResponse.success) {
-      this.log.error('Fetching home list failed. code=%s, msg=%s', homeResponse.code, homeResponse.msg);
-      return undefined;
+      throw new TuyaSharingRequestError(
+        `Tuya account home list failed (${homeResponse.code}): ${homeResponse.msg}`,
+        true,
+      );
     }
 
     const homeWhitelist = options.homeWhitelist?.map(String);

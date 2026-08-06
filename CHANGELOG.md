@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [2.7.2] - (2026.8.6)
+
+### Fixed
+ - Keep QR account child bridges running when Tuya device discovery encounters a transient network failure, then retry discovery automatically.
+ - Retry read-only account requests with a persistent IPv4 fallback and honor the existing `forceIPv4` setting.
+ - Preserve cached accessories when Tuya returns an incomplete home, device, or scene inventory.
+
 ## [2.7.1] - (2026.8.6)
 
 ### Fixed

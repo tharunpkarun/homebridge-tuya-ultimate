@@ -1,4 +1,4 @@
-import TuyaSharingAPI from '../core/TuyaSharingAPI';
+import TuyaSharingAPI, { TuyaSharingRequestError } from '../core/TuyaSharingAPI';
 import TuyaSharingMQ from '../core/TuyaSharingMQ';
 import { convertSharingStatus } from '../core/TuyaSharingStrategy';
 import TuyaDevice, {
@@ -49,8 +49,10 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
     for (const homeId of homeIDList) {
       const response = await this.api.get('/v1.0/m/life/ha/home/devices', { homeId });
       if (!response.success) {
-        this.log.warn('Get devices failed for home %s: %s', homeId, response.msg);
-        continue;
+        throw new TuyaSharingRequestError(
+          `Tuya account device inventory failed (${response.code}): ${response.msg}`,
+          true,
+        );
       }
       for (const raw of response.result as RawDevice[]) {
         devices.push(await this.normalizeDevice(raw, homeId));
@@ -124,7 +126,10 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
   async getSceneList(homeID: string) {
     const response = await this.api.get('/v1.0/m/scene/ha/home/scenes', { homeId: homeID });
     if (!response.success) {
-      return [];
+      throw new TuyaSharingRequestError(
+        `Tuya account scene inventory failed (${response.code}): ${response.msg}`,
+        true,
+      );
     }
     return (response.result as RawDevice[])
       .filter(scene => scene.enabled !== false)
