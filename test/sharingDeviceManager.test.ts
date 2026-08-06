@@ -318,6 +318,7 @@ describe('Tuya account-sharing device manager', () => {
             id: 'ir-hub', name: 'IR Thermostat', owner_id: 'home-1',
             product_id: 'unlisted-ir-thermostat', product_name: 'IR Thermostat',
             category: 'hwktwkq', status: [], sub: false,
+            ip: '192.168.1.50', local_key: '0123456789abcdef',
           },
           {
             id: 'ir-ac', name: 'Bedroom AC', owner_id: 'home-1',
@@ -350,7 +351,8 @@ describe('Tuya account-sharing device manager', () => {
       post: jest.fn(),
       postWithQuery,
     } as unknown as TuyaSharingAPI;
-    const deviceManager = new TuyaSharingDeviceManager(api);
+    const sharingLanClient = { send: jest.fn(async () => undefined) };
+    const deviceManager = new TuyaSharingDeviceManager(api, false, sharingLanClient);
     const devices = await deviceManager.updateDevices(['home-1']);
 
     await deviceManager.updateInfraredRemotes(devices);
@@ -360,6 +362,8 @@ describe('Tuya account-sharing device manager', () => {
     const airConditioner = devices.find(device => device.id === 'ir-ac')!;
     expect(hub.schema).toEqual([]);
     expect(hub.status).toEqual([]);
+    expect(hub).not.toHaveProperty('local_key');
+    expect(hub).not.toHaveProperty('localKey');
     expect(airConditioner).toMatchObject({
       parent_id: 'ir-hub',
       set_up: true,
@@ -398,16 +402,10 @@ describe('Tuya account-sharing device manager', () => {
         { code: 'PowerOn', value: 'PowerOn' },
       ] },
     );
-    expect(postWithQuery).toHaveBeenNthCalledWith(
-      2,
-      '/v1.1/m/thing/ir-hub/commands',
-      undefined,
-      { commands: [
-        { code: 'mode', value: 'warm' },
-        { code: 'temp_set', value: 23 },
-        { code: 'fan_speed_enum', value: 'middle' },
-        { code: 'switch', value: true },
-      ] },
+    expect(postWithQuery).toHaveBeenCalledTimes(1);
+    expect(sharingLanClient.send).toHaveBeenCalledWith(
+      { id: 'ir-hub', ip: '192.168.1.50', localKey: '0123456789abcdef' },
+      { '1': true, '3': 23, '4': 'warm', '5': 'middle' },
     );
   });
 

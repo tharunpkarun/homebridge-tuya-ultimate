@@ -1,6 +1,8 @@
 import TuyaSharingAPI, { TuyaSharingRequestError } from '../core/TuyaSharingAPI';
 import TuyaSharingMQ from '../core/TuyaSharingMQ';
 import { convertSharingStatus } from '../core/TuyaSharingStrategy';
+import TuyaLanProtocol33Client from '../local/TuyaLanProtocol33';
+import { TuyaLocalClient } from '../local/TuyaLocalCommandRouter';
 import TuyaDevice, {
   TuyaDeviceSchema,
   TuyaDeviceSchemaMode,
@@ -52,8 +54,13 @@ const DIRECT_IR_THERMOSTAT_FANS = ['auto', 'low', 'middle', 'high'] as const;
 
 export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
   public readonly sharingMq: TuyaSharingMQ;
+  private readonly sharingLocalKeys = new Map<string, string>();
 
-  constructor(public readonly sharingApi: TuyaSharingAPI, debug = false) {
+  constructor(
+    public readonly sharingApi: TuyaSharingAPI,
+    debug = false,
+    private readonly sharingLanClient: TuyaLocalClient = new TuyaLanProtocol33Client(),
+  ) {
     const messageBus = new TuyaSharingMQ(sharingApi);
     super(sharingApi, debug, messageBus);
     this.sharingMq = messageBus;
@@ -89,6 +96,12 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       }
     }
     this.devices = deduplicateDevices(devices);
+    const discoveredIDs = new Set(this.devices.map(device => device.id));
+    for (const deviceID of this.sharingLocalKeys.keys()) {
+      if (!discoveredIDs.has(deviceID)) {
+        this.sharingLocalKeys.delete(deviceID);
+      }
+    }
     this.updateSharingSubscriptions(homeIDList);
     return this.devices;
   }
@@ -281,6 +294,10 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       'Tuya rejected the virtual IR AC command; retrying through physical IR thermostat %s.',
       directTarget.thermostat.id,
     );
+    const lanResponse = await this.sendDirectInfraredThermostatLAN(directTarget);
+    if (lanResponse) {
+      return lanResponse;
+    }
     const directResponse = await this.sharingApi.postWithQuery(
       `/v1.1/m/thing/${directTarget.thermostat.id}/commands`,
       undefined,
@@ -294,6 +311,54 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       );
     }
     return directResponse;
+  }
+
+  private async sendDirectInfraredThermostatLAN(
+    target: { thermostat: TuyaDevice; commands: TuyaDeviceStatus[] },
+  ) {
+    const localKey = this.sharingLocalKeys.get(target.thermostat.id);
+    const ip = target.thermostat.ip.trim();
+    if (!localKey) {
+      this.log.info('Local IR thermostat retry unavailable: QR inventory did not provide a valid local key.');
+      return undefined;
+    }
+    if (!isPrivateIPv4(ip)) {
+      this.log.info('Local IR thermostat retry unavailable: QR inventory did not provide a private LAN address.');
+      return undefined;
+    }
+
+    const commandDPs = new Map(target.commands.map(command => [command.code, command.value]));
+    const dpCode = (dpID: number, fallback: string) => target.thermostat.sharing_dp_codes?.[dpID] || fallback;
+    const dps: Record<string, unknown> = {};
+    for (const [dpID, fallback] of [
+      [1, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.power],
+      [3, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.temperature],
+      [4, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.mode],
+      [5, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.fan],
+    ] as const) {
+      const value = commandDPs.get(dpCode(dpID, fallback));
+      if (value !== undefined) {
+        dps[String(dpID)] = value;
+      }
+    }
+
+    this.log.info('Sending QR-authorized IR thermostat command over the local network.');
+    try {
+      await this.sharingLanClient.send({
+        id: target.thermostat.id,
+        ip,
+        localKey,
+      }, dps);
+      return {
+        success: true as const,
+        result: true,
+        t: Date.now(),
+        tid: `device-sharing-lan-${target.thermostat.id}`,
+      };
+    } catch (error) {
+      this.log.warn('Local QR-authorized IR thermostat command failed: %s', String(error));
+      return undefined;
+    }
   }
 
   private getDirectInfraredThermostatCommands(
@@ -500,6 +565,12 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
   }
 
   private async normalizeDevice(raw: RawDevice, homeId: string): Promise<TuyaDevice> {
+    const rawLocalKey = typeof raw.local_key === 'string' ? raw.local_key : '';
+    if (Buffer.byteLength(rawLocalKey, 'utf8') === 16) {
+      this.sharingLocalKeys.set(String(raw.id), rawLocalKey);
+    } else {
+      this.sharingLocalKeys.delete(String(raw.id));
+    }
     const [specResponse, strategyResponse, customTypeResponse, reportTypesResponse] = await Promise.all([
       this.api.get(`/v1.1/m/life/${raw.id}/specifications`),
       this.api.get(`/v1.0/m/life/devices/${raw.id}/status`),
@@ -610,6 +681,16 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       })),
     );
   }
+}
+
+function isPrivateIPv4(value: string) {
+  const octets = value.split('.').map(Number);
+  if (octets.length !== 4 || octets.some(octet => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return false;
+  }
+  return octets[0] === 10
+    || (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)
+    || (octets[0] === 192 && octets[1] === 168);
 }
 
 function embeddedDeviceSpecification(raw: RawDevice): {
