@@ -177,6 +177,9 @@
   .tuya-scan-step b { width: 23px; height: 23px; flex: 0 0 23px; display: grid; place-items: center; color: var(--tuya-primary); background: var(--tuya-primary-soft); border-radius: 50%; font-size: .68rem; }
   .tuya-scan-step strong { display: block; color: var(--tuya-text); font-size: .74rem; }
   .tuya-scan-step span { display: block; margin-top: 2px; color: var(--tuya-muted); font-size: .66rem; }
+  .tuya-product-steps { display: grid; gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; counter-reset: product-step; }
+  .tuya-product-steps li { position: relative; min-height: 28px; padding: 7px 9px 7px 38px; color: var(--tuya-text); background: var(--tuya-surface-soft); border: 1px solid var(--tuya-border); border-radius: 9px; font-size: .7rem; line-height: 1.45; counter-increment: product-step; }
+  .tuya-product-steps li::before { position: absolute; top: 7px; left: 9px; width: 21px; height: 21px; display: grid; place-items: center; color: var(--tuya-primary); background: var(--tuya-primary-soft); border-radius: 50%; font-size: .64rem; font-weight: 850; content: counter(product-step); }
 
   .tuya-home-card, .tuya-device-card { min-width: 0; padding: 12px; color: var(--tuya-text); background: var(--tuya-surface-soft); border: 1px solid var(--tuya-border); border-radius: 11px; }
   .tuya-device-card { display: flex; flex-direction: column; }
@@ -399,10 +402,17 @@
           <button id="tuyaCheckAccount" class="tuya-button" type="button">Check authorization</button>
         </div>
         <div id="tuyaAuthStatus" class="tuya-callout tuya-mt-12">Enter the User Code, then generate a QR code.</div>
+        <div id="tuyaProductAccess">
         <div class="tuya-section-header tuya-mt-13">
           <div><span class="tuya-eyebrow">Optional product authorization</span><h3>Developer Cloud product access</h3><div class="tuya-subtitle">Keep QR login for ordinary accessories and add one linked Tuya project for product APIs that QR does not grant.</div></div>
           <button id="tuyaSaveQrCloud" class="tuya-button tuya-button-primary" type="button">Save product access</button>
         </div>
+        <ol class="tuya-product-steps" aria-label="Developer Cloud setup instructions">
+          <li>Create or open a <strong>Smart Home</strong> project at the Tuya Developer Platform and select the data center containing this app account.</li>
+          <li>Authorize <strong>IoT Core</strong> plus the services you need: <strong>IR Control Hub Open Services</strong>, Smart Lock, or IoT Video.</li>
+          <li>Open the project's <strong>Devices → Link App Account → Add App Account</strong>, then scan that separate project-link QR code with the same Tuya app account.</li>
+          <li>Copy the project's <strong>Access ID</strong> and <strong>Access Secret</strong> from its Overview page and enter them below.</li>
+        </ol>
         <label class="tuya-check tuya-mb-12"><input id="tuyaQrCloudEnabled" type="checkbox"><span><strong>Use Developer Cloud for IR, lock, and camera product APIs</strong><br><span class="tuya-help">Enable the applicable IR Control Hub, Smart Lock, or IoT Video services on one project linked to this app account.</span></span></label>
         <div id="tuyaQrCloudFields" class="tuya-form-grid">
           <div class="tuya-field">
@@ -421,6 +431,7 @@
           <div class="tuya-field"><label for="tuyaQrCloudAccessKey">Access Secret</label><input id="tuyaQrCloudAccessKey" class="tuya-input tuya-mono" type="password" autocomplete="new-password"></div>
         </div>
         <div class="tuya-callout tuya-mt-12">This one secondary connection is shared by all linked accessories. Ordinary device discovery, commands, and updates remain on QR, and no Smart Life or Tuya Smart password is required.</div>
+        </div>
       </div>
 
       <div id="tuyaQrPanel" class="tuya-section" hidden>
@@ -439,6 +450,17 @@
             <div id="tuyaQrStatus" class="tuya-callout tuya-mt-13" role="status" aria-live="polite">Waiting for scan and confirmation…</div>
             <button id="tuyaRegenerateQr" class="tuya-button tuya-mt-10" type="button">Generate a fresh code</button>
           </div>
+        </div>
+      </div>
+
+      <div id="tuyaPostQrChoice" class="tuya-section" hidden>
+        <div class="tuya-section-header">
+          <div><span class="tuya-eyebrow">QR authorization complete</span><h3>Add Developer Cloud product access?</h3><div class="tuya-subtitle">QR is enough for ordinary accessories. Add the optional linked project if you use IR remotes, product-specific lock operations, or camera stream allocation.</div></div>
+          <span class="tuya-badge tuya-badge-success">Connected</span>
+        </div>
+        <div class="tuya-toolbar">
+          <button id="tuyaConfigureProductAccess" class="tuya-button tuya-button-primary" type="button">Set up product access</button>
+          <button id="tuyaFinishQrOnly" class="tuya-button" type="button">Continue with QR only</button>
         </div>
       </div>
 
@@ -1718,6 +1740,7 @@
 
     async function startQrLogin() {
       stopPolling()
+      byId('tuyaPostQrChoice').hidden = true
       collectAccountForm()
       try {
         validateAccount()
@@ -1760,10 +1783,13 @@
         if (result.state === 'pending') return
         stopPolling()
         accountStatus = { connected: true, matchesConfiguration: true, username: result.username }
-        setCallout(byId('tuyaQrStatus'), 'Authorization complete. Loading homes and devices…', 'success')
+        byId('tuyaQrPanel').hidden = true
+        byId('tuyaPostQrChoice').hidden = false
+        setCallout(byId('tuyaAuthStatus'), 'Authorization complete. Loading homes and devices…', 'success')
         homebridge.toast.success('Tuya account authorization complete.', 'Connected')
+        byId('tuyaPostQrChoice').scrollIntoView({ behavior: 'smooth', block: 'start' })
+        homebridge.fixScrollHeight()
         await refreshAccount(false)
-        window.setTimeout(() => { byId('tuyaQrPanel').hidden = true; homebridge.fixScrollHeight() }, 1400)
       } catch (error) {
         stopPolling()
         setCallout(byId('tuyaQrStatus'), `${errorMessage(error)} Generate a fresh code and try again.`, 'danger')
@@ -1773,6 +1799,23 @@
     function stopPolling() {
       if (pollTimer) window.clearInterval(pollTimer)
       pollTimer = undefined
+    }
+
+    function configureProductAccessAfterQr() {
+      const value = options()
+      value.developerCloudFallback ||= {}
+      value.developerCloudFallback.enabled = true
+      byId('tuyaQrCloudEnabled').checked = true
+      syncDeveloperCloudFallbackControls()
+      byId('tuyaPostQrChoice').hidden = true
+      byId('tuyaProductAccess').scrollIntoView({ behavior: 'smooth', block: 'start' })
+      window.setTimeout(() => byId('tuyaQrCloudEndpoint').focus(), 250)
+      homebridge.fixScrollHeight()
+    }
+
+    function finishQrOnly() {
+      byId('tuyaPostQrChoice').hidden = true
+      selectTab('dashboard')
     }
 
     function selectTab(name) {
@@ -1815,6 +1858,7 @@
     document.querySelectorAll('[data-project-type]').forEach(button => button.addEventListener('click', () => {
       collectAccountForm()
       options().projectType = button.dataset.projectType
+      byId('tuyaPostQrChoice').hidden = true
       accountStatus = { connected: false }
       overview = { connected: false, homes: [], devices: [] }
       renderAll()
@@ -1830,6 +1874,8 @@
     byId('tuyaStartQr').addEventListener('click', startQrLogin)
     byId('tuyaRegenerateQr').addEventListener('click', startQrLogin)
     byId('tuyaCancelQr').addEventListener('click', () => { stopPolling(); byId('tuyaQrPanel').hidden = true; homebridge.fixScrollHeight() })
+    byId('tuyaConfigureProductAccess').addEventListener('click', configureProductAccessAfterQr)
+    byId('tuyaFinishQrOnly').addEventListener('click', finishQrOnly)
     byId('tuyaSaveAccount').addEventListener('click', () => savePlatform().catch(error => homebridge.toast.error(errorMessage(error), 'Could not save account settings')))
     byId('tuyaSaveQrCloud').addEventListener('click', () => savePlatform().catch(error => homebridge.toast.error(errorMessage(error), 'Could not save Developer Cloud product access')))
     byId('tuyaSaveHomes').addEventListener('click', () => savePlatform().then(() => refreshAccount(false)).catch(error => homebridge.toast.error(errorMessage(error), 'Could not save home selection')))

@@ -6,6 +6,91 @@ import { JSDOM } from 'jsdom';
 type UiEventHandler = (event?: { data?: unknown }) => unknown;
 
 describe('Homebridge custom UI', () => {
+  test('closes an approved QR scanner and offers optional Developer Cloud product setup', async () => {
+    const listeners = new Map<string, UiEventHandler[]>();
+    let qrAuthorized = false;
+    const updatePluginConfig = jest.fn(async () => undefined);
+    const savePluginConfig = jest.fn(async () => undefined);
+    const request = jest.fn(async (route: string) => {
+      if (route === '/about') return {};
+      if (route === '/sharing/accounts') return { accounts: [] };
+      if (route === '/sharing/status') {
+        return qrAuthorized
+          ? { connected: true, matchesConfiguration: true, username: 'Approved account' }
+          : { connected: false, matchesConfiguration: false };
+      }
+      if (route === '/sharing/overview') {
+        return {
+          connected: true,
+          homes: [{ id: 'home-1', name: 'Home', selected: true, deviceCount: 0, onlineCount: 0 }],
+          devices: [],
+        };
+      }
+      if (route === '/sharing/qr/start') {
+        return { qrToken: 'qr-token', qrImage: 'data:image/png;base64,dGVzdA==' };
+      }
+      if (route === '/sharing/qr/poll') {
+        qrAuthorized = true;
+        return { state: 'approved', username: 'Approved account' };
+      }
+      throw new Error(`Unexpected UI request: ${route}`);
+    });
+    const html = fs.readFileSync(path.join(__dirname, '..', 'homebridge-ui', 'public', 'index.html'), 'utf8');
+    const dom = new JSDOM(html, {
+      beforeParse(window) {
+        window.HTMLElement.prototype.scrollIntoView = jest.fn();
+        Object.defineProperty(window, 'homebridge', {
+          configurable: true,
+          value: {
+            addEventListener(name: string, listener: UiEventHandler) {
+              listeners.set(name, [...(listeners.get(name) || []), listener]);
+            },
+            fixScrollHeight: jest.fn(),
+            getPluginConfig: jest.fn(async () => [{
+              platform: 'TuyaPlatform',
+              name: 'Tuya',
+              options: { projectType: '3', appSchema: 'smartlife', userCode: 'user-1' },
+            }]),
+            hideSchemaForm: jest.fn(),
+            request,
+            savePluginConfig,
+            showSchemaForm: jest.fn(),
+            toast: { error: jest.fn(), info: jest.fn(), success: jest.fn() },
+            updatePluginConfig,
+          },
+        });
+      },
+      runScripts: 'dangerously',
+      url: 'http://127.0.0.1/plugin-config',
+    });
+
+    await Promise.all((listeners.get('ready') || []).map(listener => listener()));
+    jest.spyOn(dom.window, 'setInterval').mockImplementation(handler => {
+      Promise.resolve().then(() => typeof handler === 'function' && handler());
+      return 77;
+    });
+    const document = dom.window.document;
+    (document.querySelector('[data-tuya-tab="account"]') as HTMLButtonElement).click();
+    expect(document.getElementById('tuyaProductAccess')?.textContent).toContain('Link App Account');
+
+    (document.getElementById('tuyaStartQr') as HTMLButtonElement).click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(document.getElementById('tuyaQrPanel')?.hidden).toBe(true);
+    expect(document.getElementById('tuyaPostQrChoice')?.hidden).toBe(false);
+    expect(document.getElementById('tuyaPostQrChoice')?.textContent).toContain('Add Developer Cloud product access?');
+    expect(document.getElementById('tuyaAuthorizationStat')?.textContent).toBe('Connected');
+
+    (document.getElementById('tuyaConfigureProductAccess') as HTMLButtonElement).click();
+    expect(document.getElementById('tuyaPostQrChoice')?.hidden).toBe(true);
+    expect((document.getElementById('tuyaQrCloudEnabled') as HTMLInputElement).checked).toBe(true);
+    expect((document.getElementById('tuyaQrCloudEndpoint') as HTMLSelectElement).disabled).toBe(false);
+
+    dom.window.close();
+  });
+
   test('keeps account actions hidden behind a loader until initial authorization discovery finishes', async () => {
     const listeners = new Map<string, UiEventHandler[]>();
     let resolveStatus!: (value: { connected: boolean }) => void;
