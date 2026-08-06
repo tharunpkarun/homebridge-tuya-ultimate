@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## [2.7.0] - (2026.8.6)
+
 ### Added
  - Configurable IR air-conditioner power-on profiles (`Cool`, `Heat`, `Auto`, or `Last`) with deterministic Apple Home automation handling.
  - Read-only Config UI device inspector with allowlisted schema/status diagnostics and safe `deviceOverrides` drafts.
