@@ -158,6 +158,65 @@ describe('IRAirConditionerAccessory availability', () => {
 });
 
 describe('IRAirConditionerAccessory HomeKit presentation', () => {
+  test('seeds threshold characteristics inside their range before applying stricter props', () => {
+    const handler = createHandler(undefined, [
+      { code: 'power', value: 0 },
+      { code: 'mode', value: 0 },
+      { code: 'temp', value: 25 },
+    ]) as any;
+    handler.device.remote_keys = {
+      key_range: [0, 1].map(mode => ({
+        mode,
+        temp_list: Array.from({ length: 15 }, (_, index) => ({ temp: 16 + index, fan_list: [] })),
+      })),
+    };
+    handler.Characteristic.HeatingThresholdTemperature = 'HeatingThresholdTemperature';
+    handler.Characteristic.CoolingThresholdTemperature = 'CoolingThresholdTemperature';
+    const callOrder: string[] = [];
+    const characteristic = () => {
+      const value: any = {
+        updateValue: jest.fn(() => {
+          callOrder.push('updateValue');
+          return value;
+        }),
+        onGet: jest.fn(() => value),
+        onSet: jest.fn(() => value),
+        setProps: jest.fn(() => {
+          callOrder.push('setProps');
+          return value;
+        }),
+      };
+      return value;
+    };
+    const active = characteristic();
+    const heating = characteristic();
+    const cooling = characteristic();
+    const service = {
+      getCharacteristic: jest.fn((name: unknown) => {
+        if (name === handler.Characteristic.Active) {
+          return active;
+        }
+        return ({
+          HeatingThresholdTemperature: heating,
+          CoolingThresholdTemperature: cooling,
+        } as Record<string, unknown>)[String(name)];
+      }),
+    };
+    handler.mainService = jest.fn(() => service);
+    handler.configureCurrentState = jest.fn();
+    handler.configureTargetState = jest.fn();
+    handler.configureCurrentTemperature = jest.fn();
+    handler.removeRotationSpeed = jest.fn();
+
+    handler.configureAirConditioner();
+
+    expect(heating.updateValue).toHaveBeenCalledWith(25);
+    expect(cooling.updateValue).toHaveBeenCalledWith(25);
+    expect(heating.setProps).toHaveBeenCalledWith({ minValue: 16, maxValue: 30, minStep: 1 });
+    expect(cooling.setProps).toHaveBeenCalledWith({ minValue: 16, maxValue: 30, minStep: 1 });
+    expect(callOrder).toEqual(['updateValue', 'setProps', 'updateValue', 'setProps']);
+  });
+
   test('refreshes the remembered Tuya IR state without sending another IR command', async () => {
     const remoteStatus = [
       { code: 'power', value: 1 },

@@ -330,6 +330,23 @@ describe('Tuya account-sharing device manager', () => {
       if (path.endsWith('/specifications')) {
         return success({ functions: [], status: [] });
       }
+      if (path === '/v1.0/m/life/devices/ir-hub/status') {
+        return success({
+          productKey: 'aqlyorlybbtn6ox7',
+          dpStatusRelationDTOS: [
+            { dpId: 1, supportLocal: false, valueConvert: 'default', statusCode: 'switch' },
+            { dpId: 3, supportLocal: false, valueConvert: 'default', statusCode: 'temp_set' },
+            { dpId: 4, supportLocal: false, valueConvert: 'default', statusCode: 'mode' },
+            { dpId: 5, supportLocal: false, valueConvert: 'default', statusCode: 'fan_speed_enum' },
+          ].map(item => ({
+            ...item,
+            statusFormat: '{}',
+            valueDesc: '{}',
+            valueType: 'Raw',
+            enumMappingMap: {},
+          })),
+        });
+      }
       if (path.endsWith('/status')) {
         return success({ productKey: 'product', dpStatusRelationDTOS: [] });
       }
@@ -341,7 +358,9 @@ describe('Tuya account-sharing device manager', () => {
       }
       throw new Error(`Unexpected path: ${path}`);
     });
-    const postWithQuery = jest.fn().mockResolvedValue(success(true));
+    const postWithQuery = jest.fn().mockImplementation(async (path: string) => path.includes('/ir-ac/')
+      ? { success: false as const, result: undefined, code: 1109, msg: '1109', t: 1, tid: 'test' }
+      : success(true));
     const api = {
       tokenInfo: { access_token: '', refresh_token: '', uid: 'user-1', expire: Number.MAX_SAFE_INTEGER },
       get,
@@ -383,8 +402,10 @@ describe('Tuya account-sharing device manager', () => {
     expect(airConditioner.remote_keys?.key_range).not.toHaveLength(0);
     expect(get).not.toHaveBeenCalledWith(expect.stringMatching(/^\/v2\.0\/infrareds\//));
 
-    await deviceManager.sendInfraredACCommands('ir-hub', 'ir-ac', 1, 1, 23, 2);
-    expect(postWithQuery).toHaveBeenLastCalledWith(
+    await expect(deviceManager.sendInfraredACCommands('ir-hub', 'ir-ac', 1, 1, 23, 2))
+      .resolves.toMatchObject({ success: true });
+    expect(postWithQuery).toHaveBeenNthCalledWith(
+      1,
       '/v1.1/m/thing/ir-ac/commands',
       undefined,
       { commands: [
@@ -392,6 +413,17 @@ describe('Tuya account-sharing device manager', () => {
         { code: 'T', value: 23 },
         { code: 'F', value: 2 },
         { code: 'PowerOn', value: 'PowerOn' },
+      ] },
+    );
+    expect(postWithQuery).toHaveBeenNthCalledWith(
+      2,
+      '/v1.1/m/thing/ir-hub/commands',
+      undefined,
+      { commands: [
+        { code: 'mode', value: 'warm' },
+        { code: 'temp_set', value: 23 },
+        { code: 'fan_speed_enum', value: 'middle' },
+        { code: 'switch', value: true },
       ] },
     );
   });

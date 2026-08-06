@@ -39,6 +39,16 @@ const SHARING_IR_REMOTE_CATEGORIES = new Set([
 const SHARING_IR_AC_DEFAULT_TEMPERATURE = 25;
 const SHARING_IR_AC_MAX_RANGE_SIZE = 100;
 const SHARING_IR_MAX_MAPPING_ENTRIES = 256;
+const DIRECT_IR_THERMOSTAT_CATEGORY = 'hwktwkq';
+const DIRECT_IR_THERMOSTAT_PRODUCTS = new Set(['aqlyorlybbtn6ox7']);
+const DIRECT_IR_THERMOSTAT_DEFAULT_CODES = {
+  power: 'switch',
+  temperature: 'temp_set',
+  mode: 'mode',
+  fan: 'fan_speed_enum',
+} as const;
+const DIRECT_IR_THERMOSTAT_MODES = ['cold', 'warm', 'auto', 'air', 'dehumidify'] as const;
+const DIRECT_IR_THERMOSTAT_FANS = ['auto', 'low', 'middle', 'high'] as const;
 
 export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
   public readonly sharingMq: TuyaSharingMQ;
@@ -238,10 +248,76 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       undefined,
       { commands },
     );
-    if (!response.success) {
-      this.log.info('Send QR-authorized IR AC command failed. code = %s, msg = %s', response.code, response.msg);
+    if (response.success || response.code !== 1109) {
+      if (!response.success) {
+        this.log.info('Send QR-authorized IR AC command failed. code = %s, msg = %s', response.code, response.msg);
+      }
+      return response;
     }
-    return response;
+
+    const directCommands = this.getDirectInfraredThermostatCommands(infraredID, power, mode, temp, wind);
+    if (!directCommands) {
+      this.log.info('Send QR-authorized IR AC command failed. code = %s, msg = %s', response.code, response.msg);
+      return response;
+    }
+
+    this.log.info(
+      'Tuya rejected the virtual IR AC command; retrying through physical IR thermostat %s.',
+      infraredID,
+    );
+    const directResponse = await this.sharingApi.postWithQuery(
+      `/v1.1/m/thing/${infraredID}/commands`,
+      undefined,
+      { commands: directCommands },
+    );
+    if (!directResponse.success) {
+      this.log.info(
+        'Send QR-authorized IR thermostat command failed. code = %s, msg = %s',
+        directResponse.code,
+        directResponse.msg,
+      );
+    }
+    return directResponse;
+  }
+
+  private getDirectInfraredThermostatCommands(
+    infraredID: string,
+    power: number,
+    mode: number,
+    temp: number,
+    wind: number,
+  ): TuyaDeviceStatus[] | undefined {
+    const thermostat = this.getDevice(infraredID);
+    if (!thermostat || thermostat.category !== DIRECT_IR_THERMOSTAT_CATEGORY) {
+      return undefined;
+    }
+
+    const knownProduct = DIRECT_IR_THERMOSTAT_PRODUCTS.has(thermostat.product_id);
+    const code = (dpID: number, fallback: string) => thermostat.sharing_dp_codes?.[dpID]
+      || (knownProduct ? fallback : undefined);
+    const powerCode = code(1, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.power);
+    if (!powerCode) {
+      return undefined;
+    }
+    if (power !== 1) {
+      return [{ code: powerCode, value: false }];
+    }
+
+    const temperatureCode = code(3, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.temperature);
+    const modeCode = code(4, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.mode);
+    const modeValue = DIRECT_IR_THERMOSTAT_MODES[mode];
+    if (!temperatureCode || !modeCode || !modeValue) {
+      return undefined;
+    }
+    const fanCode = code(5, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.fan);
+    const fanValue = DIRECT_IR_THERMOSTAT_FANS[wind];
+
+    return [
+      { code: modeCode, value: modeValue },
+      { code: temperatureCode, value: temp },
+      ...(fanCode && fanValue ? [{ code: fanCode, value: fanValue }] : []),
+      { code: powerCode, value: true },
+    ];
   }
 
   async sendInfraredCommands(
@@ -473,6 +549,9 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       node_id: raw.node_id ? String(raw.node_id) : undefined,
       support_local: supportLocal,
       local_strategy: supportLocal ? localStrategy : {},
+      sharing_dp_codes: Object.fromEntries(
+        Object.entries(localStrategy).map(([dpID, strategy]) => [dpID, strategy.status_code]),
+      ),
     });
     // Tuya marks virtual IR remotes as not set up even though their normal
     // sharing specification can expose a complete writable command surface.

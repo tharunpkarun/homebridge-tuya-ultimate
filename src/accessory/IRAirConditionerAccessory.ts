@@ -63,7 +63,9 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
     const key_range = this.device.remote_keys?.key_range || [];
     if (key_range.find(item => item.mode === AC_MODE_HEAT)) {
       const [minValue, maxValue] = this.getTempRange(AC_MODE_HEAT)!;
-      service.getCharacteristic(this.Characteristic.HeatingThresholdTemperature)
+      const heatingThreshold = service.getCharacteristic(this.Characteristic.HeatingThresholdTemperature);
+      heatingThreshold.updateValue(Math.min(maxValue, Math.max(minValue, this.getTemp())));
+      heatingThreshold
         .onGet(async () => {
           await this.refreshStatusFromCloud();
           if (this.getMode() === AC_MODE_AUTO) {
@@ -81,7 +83,9 @@ export default class IRAirConditionerAccessory extends BaseAccessory {
     }
     if (key_range.find(item => item.mode === AC_MODE_COOL)) {
       const [minValue, maxValue] = this.getTempRange(AC_MODE_COOL)!;
-      service.getCharacteristic(this.Characteristic.CoolingThresholdTemperature)
+      const coolingThreshold = service.getCharacteristic(this.Characteristic.CoolingThresholdTemperature);
+      coolingThreshold.updateValue(Math.min(maxValue, Math.max(minValue, this.getTemp())));
+      coolingThreshold
         .onGet(async () => {
           await this.refreshStatusFromCloud();
           return this.getTemp();

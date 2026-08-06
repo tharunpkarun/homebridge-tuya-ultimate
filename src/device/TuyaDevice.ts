@@ -144,6 +144,8 @@ export default class TuyaDevice {
   infrared_ac_product_api_resolved?: boolean;
   support_local?: boolean;
   local_strategy?: Record<number, TuyaSharingLocalStrategy>;
+  /** DP-to-code metadata retained for targeted account-sharing command fallbacks. */
+  sharing_dp_codes?: Record<number, string>;
   node_id?: string;
   set_up?: boolean;
 
