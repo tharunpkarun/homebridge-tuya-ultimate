@@ -99,9 +99,6 @@ export type TuyaIRRemoteKeys = {
   key_range: TuyaIRRemoteKeyRangeItem[];
 };
 
-export type TuyaInfraredACCommandMode = 'device-sharing';
-export type TuyaInfraredRemoteCommandMode = 'device-sharing';
-
 export default class TuyaDevice {
 
   // device
@@ -117,7 +114,6 @@ export default class TuyaDevice {
   model?: string;
   icon!: string;
   category!: string;
-  hidden?: boolean;
   unbridged?: boolean;
   schema!: TuyaDeviceSchema[];
 
@@ -139,14 +135,8 @@ export default class TuyaDevice {
   sub!: boolean;
   parent_id?: string;
   remote_keys?: TuyaIRRemoteKeys;
-  infrared_ac_command_mode?: TuyaInfraredACCommandMode;
-  infrared_remote_command_mode?: TuyaInfraredRemoteCommandMode;
-  infrared_ac_product_api_resolved?: boolean;
-  infrared_ac_local_ip?: string;
   support_local?: boolean;
   local_strategy?: Record<number, TuyaSharingLocalStrategy>;
-  /** DP-to-code metadata retained for targeted account-sharing command fallbacks. */
-  sharing_dp_codes?: Record<number, string>;
   node_id?: string;
   set_up?: boolean;
 

@@ -16,20 +16,13 @@ import BaseAccessory from './accessory/BaseAccessory';
 import { sanitizeName } from './util/util';
 import TuyaOpenAPI, { LOGIN_ERROR_MESSAGES } from './core/TuyaOpenAPI';
 import { initLogger } from './util/Logger';
-import TuyaSharingAPI, { TuyaSharingRequestError } from './core/TuyaSharingAPI';
+import TuyaSharingAPI from './core/TuyaSharingAPI';
 import {
   DEFAULT_CLIENT_ID,
   legacySharingCredentialFile,
   sharingCredentialFile,
   TuyaSharingCredentialStore,
 } from './core/TuyaSharingAuth';
-import EnergyHistoryStore from './energy/EnergyHistoryStore';
-import TuyaLocalCommandRouter from './local/TuyaLocalCommandRouter';
-import AccessoryBackupStore from './migration/AccessoryBackupStore';
-import RuntimeDiagnosticsStore from './diagnostics/RuntimeDiagnosticsStore';
-
-const ACCOUNT_DISCOVERY_RETRY_BASE_MS = 15_000;
-const ACCOUNT_DISCOVERY_RETRY_MAX_MS = 120_000;
 
 
 /**
@@ -48,13 +41,6 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
 
   public deviceManager?: TuyaDeviceManager;
   public accessoryHandlers: BaseAccessory[] = [];
-  public energyHistory?: EnergyHistoryStore;
-  public runtimeDiagnostics?: RuntimeDiagnosticsStore;
-
-  private deviceInitializationInProgress = false;
-  private accountDiscoveryRetryTimer?: NodeJS.Timeout;
-  private accountDiscoveryFailureCount = 0;
-  private shuttingDown = false;
 
   validate() {
     let result;
@@ -149,66 +135,11 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
     // Dynamic Platform plugins should only register new accessories after this event was fired,
     // in order to ensure they weren't added to homebridge already. This event can also be used
     // to start discovery of new accessories.
-    this.api.on('didFinishLaunching', () => {
+    this.api.on('didFinishLaunching', async () => {
       this.log.debug('Executed didFinishLaunching callback');
       // run the method to discover / register your devices as accessories
-      this.startDeviceInitialization();
+      await this.initDevices();
     });
-    this.api.on('shutdown', async () => {
-      this.shuttingDown = true;
-      if (this.accountDiscoveryRetryTimer) {
-        clearTimeout(this.accountDiscoveryRetryTimer);
-        this.accountDiscoveryRetryTimer = undefined;
-      }
-      this.deviceManager?.stop();
-      const writes = [
-        this.energyHistory?.flush(),
-        this.runtimeDiagnostics?.flush(),
-      ].filter((write): write is Promise<void> => write !== undefined);
-      await Promise.allSettled(writes);
-    });
-  }
-
-  private startDeviceInitialization() {
-    if (this.shuttingDown || this.deviceInitializationInProgress) {
-      return;
-    }
-    this.deviceInitializationInProgress = true;
-    void this.initDevices()
-      .then(() => {
-        this.accountDiscoveryFailureCount = 0;
-      })
-      .catch(error => {
-        const message = error instanceof Error ? error.message : String(error);
-        const shouldRetry = error instanceof TuyaSharingRequestError && error.retryable;
-        if (this.options.projectType !== '3' || this.shuttingDown || !shouldRetry) {
-          this.log.error('Tuya device discovery failed: %s', message);
-          return;
-        }
-
-        this.deviceManager?.stop();
-        this.deviceManager = undefined;
-        const delayMs = Math.min(
-          ACCOUNT_DISCOVERY_RETRY_BASE_MS * 2 ** this.accountDiscoveryFailureCount,
-          ACCOUNT_DISCOVERY_RETRY_MAX_MS,
-        );
-        this.accountDiscoveryFailureCount += 1;
-        this.log.error(
-          'Tuya account discovery failed: %s. Retrying in %d seconds without stopping the child bridge.',
-          message,
-          delayMs / 1_000,
-        );
-        if (!this.accountDiscoveryRetryTimer) {
-          this.accountDiscoveryRetryTimer = setTimeout(() => {
-            this.accountDiscoveryRetryTimer = undefined;
-            this.startDeviceInitialization();
-          }, delayMs);
-          this.accountDiscoveryRetryTimer.unref();
-        }
-      })
-      .finally(() => {
-        this.deviceInitializationInProgress = false;
-      });
   }
 
   /**
@@ -227,9 +158,6 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
    * must not be registered again to prevent "duplicate UUID" errors.
    */
   async initDevices() {
-    if (this.shuttingDown) {
-      return;
-    }
 
     let devices: TuyaDevice[] | undefined;
     if (this.options.projectType === '1') {
@@ -245,44 +173,31 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
     if (!devices || !this.deviceManager) {
       return;
     }
-    if (this.shuttingDown) {
-      this.deviceManager.stop();
-      this.deviceManager = undefined;
-      return;
-    }
-
-    this.runtimeDiagnostics = new RuntimeDiagnosticsStore(
-      path.join(this.api.user.persistPath(), 'TuyaRuntimeDiagnostics.json'),
-    );
-    this.deviceManager.setRuntimeDiagnostics(this.runtimeDiagnostics);
-    this.deviceManager.setLocalCommandRouter(new TuyaLocalCommandRouter(
-      device => this.getDeviceConfig(device)?.localControl,
-      (message, ...args) => this.log.warn(message, ...args),
-    ));
-
-    if (this.options.energyHistory?.enabled) {
-      this.energyHistory = new EnergyHistoryStore(
-        path.join(this.api.user.persistPath(), 'TuyaEnergyHistory.json'),
-        this.options.energyHistory,
-      );
-      for (const device of devices) {
-        this.energyHistory.record(device);
-      }
-    }
 
     // Infrared hubs must still have their original Tuya category while their
     // remotes are resolved. A user may hide the physical hub while exposing
     // one of its virtual remotes; applying overrides first would make the hub
     // undiscoverable and leave the remote without its parent, keys or state.
     await this.deviceManager.updateInfraredRemotes(devices);
-    if (this.shuttingDown) {
-      this.deviceManager.stop();
-      this.deviceManager = undefined;
-      return;
-    }
 
+    // override device category
     for (const device of devices) {
-      this.applyDeviceOverride(device);
+      const deviceConfig = this.getDeviceConfig(device);
+      if (!deviceConfig || !deviceConfig.category) {
+        continue;
+      }
+      this.log.warn('Override %o category from %o to %o', device.name, device.category, deviceConfig.category);
+      device.category = deviceConfig.category;
+    }
+    // override device bridged
+    for (const device of devices) {
+      const deviceConfig = this.getDeviceConfig(device);
+      if (!deviceConfig || !deviceConfig.unbridged) {
+        continue;
+      }
+
+      this.log.warn('Unbridge %o category %o', device.name, device.category );
+      device.unbridged = deviceConfig.unbridged;
     }
 
     this.log.info(`Got ${devices.length} device(s) and scene(s).`);
@@ -292,11 +207,6 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       await fs.promises.mkdir(this.api.user.persistPath());
     }
     await fs.promises.writeFile(file, JSON.stringify(devices, null, 2));
-    if (this.shuttingDown) {
-      this.deviceManager.stop();
-      this.deviceManager = undefined;
-      return;
-    }
 
     // add accessories
     for (const device of devices) {
@@ -309,19 +219,6 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
         const device = this.deviceManager!.createRTSPCameraDevice(cconfig);
         this.addAccessory(device);
       });
-
-    // Back up the minimal identity/service layout before removing stale cache
-    // entries so migrations remain auditable and recoverable by tooling.
-    if (this.cachedAccessories.length > 0) {
-      const backupStore = new AccessoryBackupStore(this.api.user.persistPath());
-      const backupFile = await backupStore.backup(this.cachedAccessories, 'stale-accessory-cleanup');
-      this.log.info('Saved stale accessory backup at %s', backupFile);
-    }
-    if (this.shuttingDown) {
-      this.deviceManager.stop();
-      this.deviceManager = undefined;
-      return;
-    }
 
     // remove unused accessories
     for (const cachedAccessory of this.cachedAccessories) {
@@ -347,36 +244,6 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
     const globalConfig = this.options.deviceOverrides.find(config => config.id === 'global');
 
     return deviceConfig || productConfig || globalConfig;
-  }
-
-  private applyDeviceOverride(device: TuyaDevice) {
-    const deviceConfig = this.getDeviceConfig(device);
-    if (!deviceConfig) {
-      device.hidden = false;
-      device.unbridged = false;
-      device.infrared_ac_local_ip = undefined;
-      return;
-    }
-
-    const hidden = deviceConfig.hidden === true || deviceConfig.category === 'hidden';
-    if (device.hidden !== hidden && hidden) {
-      this.log.info('Hide accessory %o.', device.name);
-    }
-    device.hidden = hidden;
-
-    if (deviceConfig.category && deviceConfig.category !== 'hidden' && device.category !== deviceConfig.category) {
-      this.log.warn('Override %o category from %o to %o', device.name, device.category, deviceConfig.category);
-      device.category = deviceConfig.category;
-    }
-
-    const unbridged = deviceConfig.unbridged === true;
-    if (device.unbridged !== unbridged && unbridged) {
-      this.log.warn('Unbridge %o category %o', device.name, device.category);
-    }
-    device.unbridged = unbridged;
-    device.infrared_ac_local_ip = typeof deviceConfig.irAirConditionerLocalIp === 'string'
-      ? deviceConfig.irAirConditionerLocalIp.trim() || undefined
-      : undefined;
   }
 
   getDeviceSchemaConfig(device: TuyaDevice, code: string) {
@@ -613,35 +480,22 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
       return undefined;
     }
 
-    const debugMode = options.debug === true
-      && ((options.debugLevel ?? '').length === 0 || options.debugLevel!.includes('api'));
+    const debugMode = options.debug
+      && ((options.debugLevel ?? '').length > 0 ? options.debugLevel?.includes('api') : true);
     const api = new TuyaSharingAPI({
       credentials,
-      forceIPv4: options.forceIPv4,
-      onRequestRetry: (error, attempt, maxAttempts, delayMs) => {
-        this.log.warn(
-          'Tuya account request failed: %s. Retrying over IPv4 (attempt %d/%d) in %d ms.',
-          error.message,
-          attempt + 1,
-          maxAttempts,
-          delayMs,
-        );
-      },
       onTokenUpdate: async token => {
         credentials.token_info = token;
         await store.save(credentials);
       },
     });
     const deviceManager = new TuyaSharingDeviceManager(api, debugMode);
-    await this.configureDeveloperCloudFallback(deviceManager, debugMode);
 
     this.log.info('Fetching Tuya account home list.');
     const homeResponse = await deviceManager.getHomeList();
     if (!homeResponse.success) {
-      throw new TuyaSharingRequestError(
-        `Tuya account home list failed (${homeResponse.code}): ${homeResponse.msg}`,
-        true,
-      );
+      this.log.error('Fetching home list failed. code=%s, msg=%s', homeResponse.code, homeResponse.msg);
+      return undefined;
     }
 
     const homeWhitelist = options.homeWhitelist?.map(String);
@@ -670,62 +524,9 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
     return devices;
   }
 
-  private async configureDeveloperCloudFallback(primary: TuyaDeviceManager, debugMode: boolean) {
-    if (this.options.projectType !== '3') {
-      return;
-    }
-    const fallback = this.options.developerCloudFallback;
-    if (!fallback?.enabled) {
-      return;
-    }
-
-    const requiredValues = [
-      fallback.accessId,
-      fallback.accessKey,
-    ];
-    const hasCountryCode = Number.isInteger(fallback.countryCode) && fallback.countryCode! >= 1;
-    if (!requiredValues.every(value => typeof value === 'string' && value.trim().length > 0)
-      || (!fallback.endpoint && !hasCountryCode)) {
-      this.log.warn(
-        'Developer Cloud product access is enabled but its Access ID, Access Secret, or data center is missing.',
-      );
-      return;
-    }
-
-    try {
-      const api = new TuyaOpenAPI(
-        fallback.endpoint || TuyaOpenAPI.getDefaultEndpoint(fallback.countryCode!),
-        fallback.accessId,
-        fallback.accessKey,
-        'en',
-        debugMode,
-        this.options.forceIPv4,
-        1,
-        10_000,
-      );
-      const response = await api.getToken();
-      if (!response.success) {
-        this.log.warn(
-          'Developer Cloud product API authentication failed. code=%s, msg=%s',
-          response.code,
-          response.msg,
-        );
-        return;
-      }
-      primary.setProductApiFallback(new TuyaHomeDeviceManager(api, debugMode));
-      this.log.info(
-        'Developer Cloud product API is active for QR-mode IR, locks, and cameras (project-token authentication).',
-      );
-    } catch (error) {
-      // This integration is supplemental; QR inventory and live updates must
-      // remain available if its endpoint or credentials are temporarily bad.
-      this.log.warn('Developer Cloud product API could not be initialized: %s', String(error));
-    }
-  }
-
   addAccessory(device: TuyaDevice) {
-    this.applyDeviceOverride(device);
-    if (device.hidden || device.category === 'hidden') {
+    if (device.category === 'hidden') {
+      this.log.info('Hide Accessory:', device.name);
       return;
     }
 
@@ -785,7 +586,6 @@ export class TuyaPlatform implements DynamicPlatformPlugin {
   }
 
   updateAccessoryStatus(device: TuyaDevice, status: TuyaDeviceStatus[]) {
-    this.energyHistory?.record(device, status);
     const handler = this.getAccessoryHandler(device.id);
     if (!handler) {
       return;

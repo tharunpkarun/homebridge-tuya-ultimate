@@ -71,16 +71,8 @@
 
   .tuya-shell *, .tuya-shell *::before, .tuya-shell *::after { box-sizing: border-box; }
   .tuya-shell [hidden] { display: none !important; }
-  .tuya-content[aria-hidden="true"] { display: none; }
   .tuya-shell button, .tuya-shell input, .tuya-shell select, .tuya-shell textarea { font: inherit; }
   .tuya-shell a { color: var(--tuya-primary); }
-  .tuya-initial-loader { min-height: 360px; display: grid; place-items: center; padding: 32px 18px; color: var(--tuya-text); background: var(--tuya-canvas); }
-  .tuya-loading-card { max-width: 360px; text-align: center; }
-  .tuya-loading-spinner { width: 42px; height: 42px; display: inline-block; border: 4px solid var(--tuya-border); border-top-color: var(--tuya-primary); border-radius: 50%; animation: tuya-spin .8s linear infinite; }
-  .tuya-loading-card strong { display: block; margin-top: 14px; font-size: .95rem; }
-  .tuya-loading-card span:last-child { display: block; margin-top: 5px; color: var(--tuya-muted); font-size: .74rem; }
-  @keyframes tuya-spin { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .tuya-loading-spinner { animation-duration: 1.8s; } }
   .tuya-hero { padding: 20px; color: #fff; background: linear-gradient(135deg, #ef5b2a 0%, #d9466b 42%, #6941c6 100%); }
   .tuya-hero-row { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
   .tuya-brand { display: flex; gap: 12px; align-items: center; }
@@ -177,12 +169,8 @@
   .tuya-scan-step b { width: 23px; height: 23px; flex: 0 0 23px; display: grid; place-items: center; color: var(--tuya-primary); background: var(--tuya-primary-soft); border-radius: 50%; font-size: .68rem; }
   .tuya-scan-step strong { display: block; color: var(--tuya-text); font-size: .74rem; }
   .tuya-scan-step span { display: block; margin-top: 2px; color: var(--tuya-muted); font-size: .66rem; }
-  .tuya-product-steps { display: grid; gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; counter-reset: product-step; }
-  .tuya-product-steps li { position: relative; min-height: 28px; padding: 7px 9px 7px 38px; color: var(--tuya-text); background: var(--tuya-surface-soft); border: 1px solid var(--tuya-border); border-radius: 9px; font-size: .7rem; line-height: 1.45; counter-increment: product-step; }
-  .tuya-product-steps li::before { position: absolute; top: 7px; left: 9px; width: 21px; height: 21px; display: grid; place-items: center; color: var(--tuya-primary); background: var(--tuya-primary-soft); border-radius: 50%; font-size: .64rem; font-weight: 850; content: counter(product-step); }
 
   .tuya-home-card, .tuya-device-card { min-width: 0; padding: 12px; color: var(--tuya-text); background: var(--tuya-surface-soft); border: 1px solid var(--tuya-border); border-radius: 11px; }
-  .tuya-device-card { display: flex; flex-direction: column; }
   .tuya-card-head { display: flex; gap: 9px; align-items: flex-start; }
   .tuya-card-icon { width: 36px; height: 36px; flex: 0 0 36px; display: grid; place-items: center; color: var(--tuya-primary); background: var(--tuya-primary-soft); border-radius: 9px; }
   .tuya-card-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
@@ -203,29 +191,6 @@
   .tuya-kv { display: grid; grid-template-columns: minmax(110px, .75fr) 1.5fr; gap: 7px 12px; }
   .tuya-kv dt { color: var(--tuya-muted); font-size: .69rem; }
   .tuya-kv dd { margin: 0; overflow-wrap: anywhere; color: var(--tuya-text); font-size: .73rem; }
-  .tuya-device-details { margin-top: 10px; border-top: 1px solid var(--tuya-border); }
-  .tuya-device-details > summary { padding: 10px 1px 0; cursor: pointer; color: var(--tuya-primary); font-size: .72rem; font-weight: 800; }
-  .tuya-device-details[open] > summary { margin-bottom: 10px; }
-  .tuya-inspector { display: grid; gap: 10px; }
-  .tuya-inspector-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
-  .tuya-inspector-block { min-width: 0; padding: 10px; background: var(--tuya-surface); border: 1px solid var(--tuya-border); border-radius: 9px; }
-  .tuya-inspector-block h5 { margin: 0 0 8px; color: var(--tuya-text); font-size: .75rem; }
-  .tuya-inspector-block .tuya-kv { grid-template-columns: minmax(82px, .7fr) 1.3fr; }
-  .tuya-device-options { border-color: var(--tuya-primary); }
-  .tuya-option-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .tuya-option-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: center; margin-top: 11px; }
-  .tuya-option-actions .tuya-help { margin: 0; }
-  .tuya-option-inherited { margin-bottom: 10px; }
-  .tuya-option-danger { color: var(--tuya-danger); }
-  .tuya-table-wrap { max-height: 220px; overflow: auto; border: 1px solid var(--tuya-border); border-radius: 8px; }
-  .tuya-diagnostic-table { width: 100%; border-collapse: collapse; font-size: .68rem; }
-  .tuya-diagnostic-table th, .tuya-diagnostic-table td { padding: 7px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--tuya-border); }
-  .tuya-diagnostic-table tr:last-child td { border-bottom: 0; }
-  .tuya-diagnostic-table th { position: sticky; top: 0; color: var(--tuya-muted); background: var(--tuya-surface); font-size: .61rem; text-transform: uppercase; letter-spacing: .04em; }
-  .tuya-diagnostic-table td { overflow-wrap: anywhere; color: var(--tuya-text); }
-  .tuya-diagnostic-note { margin: 7px 0 0; color: var(--tuya-muted); font-size: .63rem; line-height: 1.4; }
-  .tuya-draft { padding: 9px; margin: 0; overflow: auto; color: var(--tuya-text); background: var(--tuya-surface-soft); border: 1px solid var(--tuya-border); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .tuya-status-hidden { color: var(--tuya-muted); font-style: italic; }
   .tuya-footer { padding: 0 16px 16px; color: var(--tuya-muted); text-align: center; font-size: .67rem; }
 
   @media (max-width: 700px) {
@@ -240,22 +205,11 @@
     .tuya-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .tuya-progress { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .tuya-form-grid { grid-template-columns: 1fr; }
-    .tuya-inspector-grid { grid-template-columns: 1fr; }
-    .tuya-option-grid { grid-template-columns: 1fr; }
     .tuya-field-wide { grid-column: auto; }
   }
 </style>
 
-<div id="tuyaApp" class="tuya-shell" data-theme="auto" aria-busy="true">
-  <div id="tuyaInitialLoader" class="tuya-initial-loader" role="status" aria-live="polite">
-    <div class="tuya-loading-card">
-      <span class="tuya-loading-spinner" aria-hidden="true"></span>
-      <strong>Loading Tuya Ultimate</strong>
-      <span>Checking saved authorization and loading account data…</span>
-    </div>
-  </div>
-
-  <div id="tuyaContent" class="tuya-content" aria-hidden="true" inert>
+<div id="tuyaApp" class="tuya-shell" data-theme="auto">
   <header class="tuya-hero">
     <div class="tuya-hero-row">
       <div class="tuya-brand">
@@ -320,22 +274,18 @@
 
       <div class="tuya-section">
         <div class="tuya-section-header">
-          <div><h3>Devices</h3><div class="tuya-subtitle">Configure safe accessory options and inspect sanitized diagnostics.</div></div>
+          <div><h3>Device snapshot</h3><div class="tuya-subtitle">A read-only view of devices currently visible to this account.</div></div>
           <div class="tuya-toolbar">
             <input id="tuyaDeviceSearch" class="tuya-input tuya-device-search" type="search" placeholder="Search devices" aria-label="Search devices">
             <select id="tuyaDeviceFilter" class="tuya-input tuya-auto-width" aria-label="Filter devices">
               <option value="all">All devices</option>
               <option value="online">Online</option>
               <option value="offline">Offline</option>
-              <option value="unknown">Connection unknown</option>
               <option value="sub">Zigbee / sub-devices</option>
-              <option value="hidden">Hidden accessories</option>
             </select>
           </div>
         </div>
-        <div class="tuya-callout tuya-mb-12">Accessory options save only after you press the device's Save button and require a Homebridge restart. Sensitive datapoints and all raw string, JSON, URL, credential, key, location, and token values remain hidden.</div>
         <div id="tuyaDashboardDevices" class="tuya-grid"><div class="tuya-empty">No device data loaded yet.</div></div>
-        <datalist id="tuyaCategoryOptions"></datalist>
       </div>
     </section>
 
@@ -377,7 +327,7 @@
           <span id="tuyaAccountBadge" class="tuya-badge tuya-badge-warning">Not connected</span>
         </div>
         <div class="tuya-callout tuya-callout-warning tuya-mb-12">
-          <strong>QR infrared support depends on the remote.</strong> Compatible IR air conditioners can use their normal sharing command schema. Other remotes still require Tuya Developer Cloud and are omitted when their product-specific IR endpoints are unavailable.
+          <strong>Infrared remotes require Tuya Developer Cloud.</strong> Tuya's QR account API currently rejects the IR metadata and command endpoints. In QR mode, unresolved IR AC thermostats and remotes are omitted instead of appearing as broken accessories.
         </div>
         <div class="tuya-callout tuya-callout-warning tuya-mb-12">
           <strong>Home Assistant compatibility identity:</strong> this plugin uses Home Assistant's public Tuya identity. Authorizing the same Tuya account can replace Home Assistant's session. The reliable coexistence setup is a second app account shared into the same Tuya Home.
@@ -402,36 +352,6 @@
           <button id="tuyaCheckAccount" class="tuya-button" type="button">Check authorization</button>
         </div>
         <div id="tuyaAuthStatus" class="tuya-callout tuya-mt-12">Enter the User Code, then generate a QR code.</div>
-        <div id="tuyaProductAccess">
-        <div class="tuya-section-header tuya-mt-13">
-          <div><span class="tuya-eyebrow">Optional product authorization</span><h3>Developer Cloud product access</h3><div class="tuya-subtitle">Keep QR login for ordinary accessories and add one linked Tuya project for product APIs that QR does not grant.</div></div>
-          <button id="tuyaSaveQrCloud" class="tuya-button tuya-button-primary" type="button">Save product access</button>
-        </div>
-        <ol class="tuya-product-steps" aria-label="Developer Cloud setup instructions">
-          <li>Create or open a <strong>Smart Home</strong> project at the Tuya Developer Platform and select the data center containing this app account.</li>
-          <li>Authorize <strong>IoT Core</strong> plus the services you need: <strong>IR Control Hub Open Services</strong>, Smart Lock, or IoT Video.</li>
-          <li>Open the project's <strong>Devices → Link App Account → Add App Account</strong>, then scan that separate project-link QR code with the same Tuya app account.</li>
-          <li>Copy the project's <strong>Access ID</strong> and <strong>Access Secret</strong> from its Overview page and enter them below.</li>
-        </ol>
-        <label class="tuya-check tuya-mb-12"><input id="tuyaQrCloudEnabled" type="checkbox"><span><strong>Use Developer Cloud for IR, lock, and camera product APIs</strong><br><span class="tuya-help">Enable the applicable IR Control Hub, Smart Lock, or IoT Video services on one project linked to this app account.</span></span></label>
-        <div id="tuyaQrCloudFields" class="tuya-form-grid">
-          <div class="tuya-field">
-            <label for="tuyaQrCloudEndpoint">Project data center</label>
-            <select id="tuyaQrCloudEndpoint" class="tuya-input">
-              <option value="">Select the project data center</option>
-              <option value="https://openapi.tuyaeu.com">Europe</option>
-              <option value="https://openapi.tuyaus.com">America</option>
-              <option value="https://openapi.tuyain.com">India</option>
-              <option value="https://openapi.tuyacn.com">China</option>
-              <option value="https://openapi-sg.iotbing.com">Singapore</option>
-            </select>
-            <span class="tuya-help">Choose the data center shown on the Tuya Developer Platform project.</span>
-          </div>
-          <div class="tuya-field"><label for="tuyaQrCloudAccessId">Access ID</label><input id="tuyaQrCloudAccessId" class="tuya-input tuya-mono" type="text" autocomplete="off"></div>
-          <div class="tuya-field"><label for="tuyaQrCloudAccessKey">Access Secret</label><input id="tuyaQrCloudAccessKey" class="tuya-input tuya-mono" type="password" autocomplete="new-password"></div>
-        </div>
-        <div class="tuya-callout tuya-mt-12">This one secondary connection is shared by all linked accessories. Ordinary device discovery, commands, and updates remain on QR, and no Smart Life or Tuya Smart password is required.</div>
-        </div>
       </div>
 
       <div id="tuyaQrPanel" class="tuya-section" hidden>
@@ -450,17 +370,6 @@
             <div id="tuyaQrStatus" class="tuya-callout tuya-mt-13" role="status" aria-live="polite">Waiting for scan and confirmation…</div>
             <button id="tuyaRegenerateQr" class="tuya-button tuya-mt-10" type="button">Generate a fresh code</button>
           </div>
-        </div>
-      </div>
-
-      <div id="tuyaPostQrChoice" class="tuya-section" hidden>
-        <div class="tuya-section-header">
-          <div><span class="tuya-eyebrow">QR authorization complete</span><h3>Add Developer Cloud product access?</h3><div class="tuya-subtitle">QR is enough for ordinary accessories. Add the optional linked project if you use IR remotes, product-specific lock operations, or camera stream allocation.</div></div>
-          <span class="tuya-badge tuya-badge-success">Connected</span>
-        </div>
-        <div class="tuya-toolbar">
-          <button id="tuyaConfigureProductAccess" class="tuya-button tuya-button-primary" type="button">Set up product access</button>
-          <button id="tuyaFinishQrOnly" class="tuya-button" type="button">Continue with QR only</button>
         </div>
       </div>
 
@@ -505,10 +414,6 @@
           <label class="tuya-check"><input id="tuyaWeather" type="checkbox"><span><strong>Generate a weather accessory</strong><br><span class="tuya-help">Uses a device location to expose local weather in HomeKit.</span></span></label>
           <div class="tuya-field"><label for="tuyaWeatherApi">Weather provider</label><select id="tuyaWeatherApi" class="tuya-input"><option value="open-meteo">Open-Meteo</option><option value="tuya">Tuya weather API</option></select></div>
           <label class="tuya-check"><input id="tuyaForceIpv4" type="checkbox"><span><strong>Force IPv4</strong><br><span class="tuya-help">Useful only when IPv6 routing causes cloud connectivity problems.</span></span></label>
-          <label class="tuya-check"><input id="tuyaCapabilityAutoDetection" type="checkbox"><span><strong>Capability-based device detection</strong><br><span class="tuya-help">Conservatively map otherwise unsupported devices from standard Tuya datapoints. Explicit overrides still win.</span></span></label>
-          <label class="tuya-check tuya-grid-wide"><input id="tuyaEnergyHistoryEnabled" type="checkbox"><span><strong>Keep local energy history</strong><br><span class="tuya-help">Store allowlisted power, current, voltage, and energy samples for diagnostics. This never stores device credentials.</span></span></label>
-          <div class="tuya-field"><label for="tuyaEnergyRetentionDays">Energy retention (days)</label><input id="tuyaEnergyRetentionDays" class="tuya-input" type="number" min="1" max="365" step="1"><span class="tuya-help">1–365 days; 30 by default.</span></div>
-          <div class="tuya-field"><label for="tuyaEnergySampleMinutes">Energy sample interval (minutes)</label><input id="tuyaEnergySampleMinutes" class="tuya-input" type="number" min="1" max="1440" step="1"><span class="tuya-help">1–1440 minutes; 5 by default.</span></div>
           <label class="tuya-check"><input id="tuyaDebug" type="checkbox"><span><strong>Debug logging</strong><br><span class="tuya-help">Enable temporarily while diagnosing a problem.</span></span></label>
           <div class="tuya-field tuya-field-wide"><label for="tuyaDebugLevel">Debug scopes</label><input id="tuyaDebugLevel" class="tuya-input tuya-mono" type="text" placeholder="api or a comma-separated list of device IDs"><span class="tuya-help">Leave blank to use the plugin's default debug output.</span></div>
         </div>
@@ -523,17 +428,6 @@
           <button id="tuyaToggleSchema" class="tuya-button tuya-button-primary" type="button">Open full schema editor</button>
         </div>
         <div class="tuya-callout tuya-callout-warning"><strong>Use overrides deliberately.</strong> The guided settings cover normal installations. The full schema editor is intended for unusual products and troubleshooting, and appears below this dashboard when opened.</div>
-      </div>
-
-      <div class="tuya-section">
-        <div class="tuya-section-header">
-          <div><h3>Sanitized support bundle</h3><div class="tuya-subtitle">Share bounded diagnostics without account, configuration, location, URL, device-name, or raw datapoint data.</div></div>
-          <div class="tuya-toolbar">
-            <button id="tuyaCopySupportBundle" class="tuya-button tuya-button-primary" type="button" disabled>Copy bundle</button>
-            <button id="tuyaDownloadSupportBundle" class="tuya-button" type="button" disabled>Download JSON</button>
-          </div>
-        </div>
-        <div id="tuyaSupportBundleStatus" class="tuya-callout">Refresh a connected QR account to prepare a support bundle.</div>
       </div>
 
       <div class="tuya-section">
@@ -559,7 +453,6 @@
   </main>
 
   <div class="tuya-footer">Smart Life &amp; Tuya Smart · Cloud push updates · Account tokens stay in Homebridge storage</div>
-  </div>
 </div>
 
 <script>
@@ -568,18 +461,6 @@
     const byId = id => document.getElementById(id)
     const errorMessage = error => error?.error?.message || error?.message || String(error)
     const projectLabels = { '1': 'Custom project', '2': 'Tuya Developer Cloud', '3': 'QR login' }
-    const categoryPattern = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,95}$/
-
-    function isPrivateIPv4(value) {
-      const octets = String(value || '').split('.').map(Number)
-      if (octets.length !== 4 || octets.some(octet => !Number.isInteger(octet) || octet < 0 || octet > 255)) return false
-      return octets[0] === 10
-        || (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)
-        || (octets[0] === 192 && octets[1] === 168)
-    }
-    const lightCategories = new Set(['dj', 'dsd', 'xdd', 'fwd', 'dc', 'dd', 'gyd', 'tyndj', 'sxd'])
-    const brightnessCodes = new Set(['bright_value', 'bright_value_v2'])
-    const colorTemperatureCodes = new Set(['temp_value', 'temp_value_v2'])
     let platform = { platform: 'TuyaPlatform', name: 'Tuya', options: {} }
     let overview = { connected: false, homes: [], devices: [] }
     let accountStatus = { connected: false }
@@ -589,19 +470,6 @@
     let pollTimer
     let schemaVisible = false
     let lastUpdatedAt
-    let deviceOptionsSaving = false
-    const pendingRestartDeviceIds = new Set()
-
-    function setInitialLoading(loading) {
-      const app = byId('tuyaApp')
-      const loader = byId('tuyaInitialLoader')
-      const content = byId('tuyaContent')
-      loader.hidden = !loading
-      content.setAttribute('aria-hidden', String(loading))
-      content.toggleAttribute('inert', loading)
-      app.setAttribute('aria-busy', String(loading))
-      homebridge?.fixScrollHeight?.()
-    }
 
     function element(tag, className, content) {
       const node = document.createElement(tag)
@@ -615,12 +483,6 @@
       return platform.options
     }
 
-    function platformFromConfigPayload(payload) {
-      const configs = Array.isArray(payload) ? payload : [payload]
-      return configs.find(config => config?.platform === 'TuyaPlatform')
-        || configs.find(config => config && typeof config === 'object' && config.options)
-    }
-
     function ensureDefaults() {
       platform.platform ||= 'TuyaPlatform'
       platform.name ||= 'Tuya'
@@ -630,74 +492,6 @@
       if (value.generateWeatherAccessory === undefined) value.generateWeatherAccessory = false
       value.weatherAPI ||= 'open-meteo'
       if (value.forceIPv4 === undefined) value.forceIPv4 = false
-      if (value.capabilityAutoDetection === undefined) value.capabilityAutoDetection = false
-      value.energyHistory ||= {}
-      if (value.energyHistory.enabled === undefined) value.energyHistory.enabled = false
-      value.energyHistory.retentionDays ||= 30
-      value.energyHistory.sampleIntervalMinutes ||= 5
-    }
-
-    function cloneConfigValue(value) {
-      return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
-    }
-
-    function configuredOverrides() {
-      return Array.isArray(options().deviceOverrides) ? options().deviceOverrides : []
-    }
-
-    function overrideSourceForDevice(device) {
-      const overrides = configuredOverrides()
-      const exactIndex = overrides.findIndex(config => config?.id === device.id || (device.uuid && config?.id === device.uuid))
-      if (exactIndex >= 0) return { kind: 'device', label: 'Exact device override', index: exactIndex, value: overrides[exactIndex] }
-      const productIndex = device.productId ? overrides.findIndex(config => config?.id === device.productId) : -1
-      if (productIndex >= 0) return { kind: 'product', label: 'Inherited product override', index: productIndex, value: overrides[productIndex] }
-      const globalIndex = overrides.findIndex(config => config?.id === 'global')
-      if (globalIndex >= 0) return { kind: 'global', label: 'Inherited global override', index: globalIndex, value: overrides[globalIndex] }
-      return { kind: 'default', label: 'Device defaults', index: -1, value: undefined }
-    }
-
-    function normalizedOverride(value, id) {
-      const result = cloneConfigValue(value) || {}
-      result.id = id
-      if (result.category === 'hidden') {
-        result.hidden = true
-        delete result.category
-      }
-      return result
-    }
-
-    function deviceOptionState(device) {
-      const source = overrideSourceForDevice(device)
-      const value = normalizedOverride(source.value, source.value?.id || device.id)
-      return {
-        source,
-        hidden: value.hidden === true,
-        category: typeof value.category === 'string' ? value.category : '',
-        unbridged: value.unbridged === true,
-        adaptiveLighting: value.adaptiveLighting === true,
-        garageDoorUseContactSensorForState: value.garageDoorUseContactSensorForState === true,
-        irAirConditionerPowerOnMode: ['cool', 'heat', 'auto', 'last'].includes(value.irAirConditionerPowerOnMode)
-          ? value.irAirConditionerPowerOnMode
-          : 'cool',
-        irAirConditionerLocalIp: typeof value.irAirConditionerLocalIp === 'string'
-          ? value.irAirConditionerLocalIp
-          : '',
-      }
-    }
-
-    function effectiveDeviceCategory(device, categoryOverride) {
-      return categoryOverride || device.category || 'unknown'
-    }
-
-    function hasSchemaCode(device, codes) {
-      return (device.schema || []).some(schema => codes.has(schema.code))
-    }
-
-    function supportsAdaptiveLighting(device, category, state) {
-      return state.adaptiveLighting
-        || (lightCategories.has(category)
-          && hasSchemaCode(device, brightnessCodes)
-          && hasSchemaCode(device, colorTemperatureCodes))
     }
 
     function appLabel(schema = options().appSchema) {
@@ -778,533 +572,6 @@
       return element('span', `tuya-badge${tone ? ` tuya-badge-${tone}` : ''}`, label)
     }
 
-    function titleCase(value) {
-      return String(value || 'unknown').replace(/-/g, ' ').replace(/\b\w/g, character => character.toUpperCase())
-    }
-
-    function appendKeyValues(root, rows) {
-      rows.forEach(([label, value, mono]) => {
-        root.append(element('dt', '', label), element('dd', mono ? 'tuya-mono' : '', value || '—'))
-      })
-    }
-
-    function schemaPropertyLabel(entry) {
-      const property = entry.property || {}
-      if (Array.isArray(property.range) && property.range.length) return property.range.join(', ')
-      const values = []
-      if (property.min !== undefined || property.max !== undefined) values.push(`${property.min ?? '…'} to ${property.max ?? '…'}`)
-      if (property.step !== undefined) values.push(`step ${property.step}`)
-      if (property.scale !== undefined) values.push(`scale ${property.scale}`)
-      return values.join(' · ') || '—'
-    }
-
-    function diagnosticTable(headers, rows) {
-      const wrap = element('div', 'tuya-table-wrap')
-      const table = element('table', 'tuya-diagnostic-table')
-      const head = element('thead')
-      const headRow = element('tr')
-      headers.forEach(header => headRow.append(element('th', '', header)))
-      head.append(headRow)
-      const body = element('tbody')
-      rows.forEach(row => {
-        const tr = element('tr')
-        row.forEach(cell => tr.append(cell instanceof Node ? cell : element('td', '', cell)))
-        body.append(tr)
-      })
-      table.append(head, body)
-      wrap.append(table)
-      return wrap
-    }
-
-    async function copyText(text) {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text)
-        return
-      }
-      const input = element('textarea')
-      input.value = text
-      input.setAttribute('readonly', '')
-      input.style.position = 'fixed'
-      input.style.opacity = '0'
-      document.body.append(input)
-      input.select()
-      const copied = document.execCommand?.('copy')
-      input.remove()
-      if (!copied) throw new Error('Clipboard access is unavailable in this browser.')
-    }
-
-    function supportIdentifier(value, fallback = 'unknown') {
-      const text = typeof value === 'string' ? value : ''
-      return /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,95}$/.test(text) ? text : fallback
-    }
-
-    function supportCount(value) {
-      return Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0
-    }
-
-    function supportEnum(value, allowed, fallback = 'unknown') {
-      return allowed.includes(value) ? value : fallback
-    }
-
-    function validSupportCount(value) {
-      return Number.isSafeInteger(value) && value >= 0
-    }
-
-    function buildRuntimeSupportSummary(runtime) {
-      if (!runtime || runtime.version !== 1 || !runtime.mqtt || !runtime.commands) return undefined
-      if (!validSupportCount(runtime.mqtt.messageCount)
-        || !Array.isArray(runtime.mqtt.protocols)
-        || !validSupportCount(runtime.commands.retainedCount)
-        || runtime.commands.retainedCount > 100) return undefined
-      const protocols = runtime.mqtt.protocols.slice(0, 32).flatMap(item => (
-        Number.isInteger(item?.protocol) && item.protocol >= 0 && item.protocol <= 99999 && validSupportCount(item.count)
-          ? [{ protocol: item.protocol, count: item.count }]
-          : []
-      ))
-      const mqtt = { messageCount: runtime.mqtt.messageCount, protocols }
-      if (validSupportCount(runtime.mqtt.lastMessageAt)) mqtt.lastMessageAt = runtime.mqtt.lastMessageAt
-      if (Number.isInteger(runtime.mqtt.lastProtocol) && runtime.mqtt.lastProtocol >= 0 && runtime.mqtt.lastProtocol <= 99999) mqtt.lastProtocol = runtime.mqtt.lastProtocol
-      if (typeof runtime.mqtt.lastDeviceReference === 'string'
-        && /^runtime-device-\d{3}$/.test(runtime.mqtt.lastDeviceReference)) mqtt.lastDeviceReference = runtime.mqtt.lastDeviceReference
-
-      const copyCounts = (source, keys) => {
-        if (!source || keys.some(key => !validSupportCount(source[key]))) return undefined
-        return Object.fromEntries(keys.map(key => [key, source[key]]))
-      }
-      const outcomeCounts = copyCounts(runtime.commands.outcomeCounts, ['success', 'failure'])
-      const requestedRouteCounts = copyCounts(runtime.commands.requestedRouteCounts, ['cloud', 'local', 'hybrid'])
-      const attemptedRouteCounts = copyCounts(runtime.commands.attemptedRouteCounts, ['cloud', 'local'])
-      const duration = runtime.commands.durationMs
-      if (!outcomeCounts || !requestedRouteCounts || !attemptedRouteCounts || !duration
-        || !['min', 'max', 'average'].every(key => validSupportCount(duration[key]) && duration[key] <= 300000)) return undefined
-
-      const codeCounts = Array.isArray(runtime.commands.codeCounts)
-        ? runtime.commands.codeCounts.slice(0, 64).flatMap(item => {
-            const code = supportIdentifier(item?.code)
-            return code !== 'unknown' && validSupportCount(item.count) ? [{ code, count: item.count }] : []
-          })
-        : []
-      const recent = Array.isArray(runtime.commands.recent)
-        ? runtime.commands.recent.slice(-25).flatMap(command => {
-            if (!validSupportCount(command?.timestamp)
-              || typeof command.deviceReference !== 'string'
-              || !/^runtime-device-\d{3}$/.test(command.deviceReference)
-              || !Array.isArray(command.codes)
-              || !['cloud', 'local', 'hybrid'].includes(command.requestedRoute)
-              || !['cloud', 'local'].includes(command.attemptedRoute)
-              || !['success', 'failure'].includes(command.outcome)
-              || !Number.isInteger(command.durationMs)
-              || command.durationMs < 0
-              || command.durationMs > 300000) return []
-            const entry = {
-              timestamp: command.timestamp,
-              deviceReference: command.deviceReference,
-              codes: command.codes.slice(0, 16).map(code => supportIdentifier(code)).filter(code => code !== 'unknown'),
-              requestedRoute: command.requestedRoute,
-              attemptedRoute: command.attemptedRoute,
-              outcome: command.outcome,
-              durationMs: command.durationMs,
-            }
-            if (command.outcome === 'failure' && ['configuration', 'connection', 'rejected', 'timeout', 'unknown'].includes(command.errorKind)) entry.errorKind = command.errorKind
-            return [entry]
-          })
-        : []
-      const commands = {
-        retainedCount: runtime.commands.retainedCount,
-        outcomeCounts,
-        requestedRouteCounts,
-        attemptedRouteCounts,
-        durationMs: { min: duration.min, max: duration.max, average: duration.average },
-        codeCounts,
-        recent,
-      }
-      if (validSupportCount(runtime.commands.lastCommandAt)) commands.lastCommandAt = runtime.commands.lastCommandAt
-      return { version: 1, mqtt, commands }
-    }
-
-    function buildSupportBundle() {
-      if (!overview.connected) throw new Error('Refresh a connected account before creating a support bundle.')
-      const homeReferences = new Map()
-      const homes = (overview.homes || []).map((home, index) => {
-        const reference = `home-${String(index + 1).padStart(3, '0')}`
-        homeReferences.set(String(home.id), reference)
-        return {
-          reference,
-          selected: home.selected === true,
-          deviceCount: supportCount(home.deviceCount),
-          onlineCount: supportCount(home.onlineCount),
-        }
-      })
-      const deviceReferences = new Map()
-      let nextDeviceReference = 1
-      const devices = (overview.devices || []).map((device, index) => {
-        const sourceKey = device.id === undefined ? `missing-${index}` : String(device.id)
-        if (!deviceReferences.has(sourceKey)) {
-          deviceReferences.set(sourceKey, `device-${String(nextDeviceReference).padStart(3, '0')}`)
-          nextDeviceReference += 1
-        }
-        const connection = device.connection || {}
-        const schema = (device.schema || []).slice(0, 128).map(entry => {
-          const constraints = {}
-          if (entry.type === 'Integer') {
-            for (const key of ['min', 'max', 'scale', 'step']) {
-              const value = entry.property?.[key]
-              if (typeof value === 'number' && Number.isFinite(value)) constraints[key] = value
-            }
-          }
-          return {
-            code: supportIdentifier(entry.code),
-            mode: supportEnum(entry.mode, ['ro', 'rw', 'wo', 'unknown']),
-            type: supportEnum(entry.type, ['Boolean', 'Integer', 'Enum', 'String', 'Json', 'Raw', 'Bitmap', 'Unknown'], 'Unknown'),
-            constraints,
-          }
-        }).filter(entry => entry.code !== 'unknown')
-        const status = (device.status || []).slice(0, 128).map(entry => ({
-          code: supportIdentifier(entry.code),
-          visibility: entry.redacted ? 'redacted' : 'safe-scalar-observed',
-        })).filter(entry => entry.code !== 'unknown')
-        return {
-          reference: deviceReferences.get(sourceKey),
-          homeReference: homeReferences.get(String(device.homeId)) || 'unassigned',
-          category: supportIdentifier(device.category),
-          connection: {
-            status: supportEnum(connection.status || (device.online === true ? 'online' : device.online === false ? 'offline' : 'unknown'), ['online', 'offline', 'unknown']),
-            transport: supportEnum(connection.transport || 'cloud', ['cloud']),
-            topology: supportEnum(connection.topology || (device.subDevice === true ? 'sub-device' : 'direct'), ['direct', 'sub-device']),
-            setup: supportEnum(connection.setup, ['ready', 'incomplete', 'unknown']),
-          },
-          schema,
-          schemaOmittedCount: supportCount(device.schemaOmittedCount),
-          status,
-          statusOmittedCount: supportCount(device.statusOmittedCount),
-        }
-      })
-      const bundle = {
-        format: 'homebridge-tuya-support-bundle',
-        formatVersion: 1,
-        generatedAt: new Date().toISOString(),
-        plugin: {
-          packageName: supportIdentifier(about.packageName, 'homebridge-tuya-ultimate'),
-          version: supportIdentifier(about.version),
-        },
-        connection: {
-          type: supportEnum(overview.connectionType, ['account-sharing']),
-          app: supportEnum(overview.appSchema, ['smartlife', 'tuyaSmart']),
-          connected: true,
-        },
-        homes: {
-          count: homes.length,
-          selectedCount: homes.filter(home => home.selected).length,
-          items: homes,
-        },
-        devices: {
-          count: devices.length,
-          onlineCount: devices.filter(device => device.connection.status === 'online').length,
-          items: devices,
-        },
-      }
-      const runtimeDiagnostics = buildRuntimeSupportSummary(overview.runtimeDiagnostics)
-      if (runtimeDiagnostics) bundle.runtimeDiagnostics = runtimeDiagnostics
-      return bundle
-    }
-
-    function supportBundleJson() {
-      return JSON.stringify(buildSupportBundle(), null, 2)
-    }
-
-    async function copySupportBundle() {
-      try {
-        await copyText(supportBundleJson())
-        homebridge.toast.success('Sanitized support bundle copied.', 'Device inspector')
-      } catch (error) {
-        homebridge.toast.error(errorMessage(error), 'Could not copy support bundle')
-      }
-    }
-
-    function downloadSupportBundle() {
-      try {
-        if (!URL.createObjectURL) throw new Error('Downloads are unavailable in this browser.')
-        const url = URL.createObjectURL(new Blob([supportBundleJson()], { type: 'application/json' }))
-        const link = element('a')
-        link.href = url
-        link.download = 'homebridge-tuya-support-bundle.json'
-        document.body.append(link)
-        link.click()
-        link.remove()
-        URL.revokeObjectURL(url)
-        homebridge.toast.success('Sanitized support bundle downloaded.', 'Device inspector')
-      } catch (error) {
-        homebridge.toast.error(errorMessage(error), 'Could not download support bundle')
-      }
-    }
-
-    function optionField(labelText, input, helpText) {
-      const field = element('div', 'tuya-field')
-      const label = element('label')
-      label.htmlFor = input.id
-      label.append(labelText)
-      field.append(label, input)
-      if (helpText) field.append(element('span', 'tuya-help', helpText))
-      return field
-    }
-
-    function checkboxOption(title, description, checked) {
-      const label = element('label', 'tuya-check')
-      const input = element('input')
-      input.type = 'checkbox'
-      input.checked = checked
-      const copy = element('span')
-      copy.append(element('strong', '', title), document.createElement('br'), element('span', 'tuya-help', description))
-      label.append(input, copy)
-      return { label, input }
-    }
-
-    function renderDeviceOptions(device) {
-      const state = deviceOptionState(device)
-      const block = element('div', 'tuya-inspector-block tuya-device-options')
-      const header = element('div', 'tuya-section-header')
-      const heading = element('div')
-      heading.append(element('h5', '', 'Accessory options'), element('div', 'tuya-subtitle', 'Quick per-device settings. DP transformations and LAN credentials remain in Advanced.'))
-      header.append(heading, badge(state.source.label, state.source.kind === 'device' ? 'primary' : ''))
-      block.append(header)
-
-      if (state.source.kind === 'product' || state.source.kind === 'global') {
-        block.append(element(
-          'div',
-          'tuya-callout tuya-option-inherited',
-          'Saving creates an exact device override containing a snapshot of the current inherited settings, including advanced fields that are not displayed here.',
-        ))
-      }
-
-      const grid = element('div', 'tuya-option-grid')
-      const visibility = checkboxOption(
-        'Show in Apple Home',
-        'Turning this off keeps Tuya discovery active but removes the accessory after Homebridge restarts.',
-        !state.hidden,
-      )
-      visibility.input.dataset.deviceOption = 'visible'
-      grid.append(visibility.label)
-
-      const exposure = element('select', 'tuya-input')
-      exposure.id = `tuya-device-${device.id}-exposure`
-      exposure.dataset.deviceOption = 'exposure'
-      exposure.append(new Option('Homebridge bridge', 'bridged'), new Option('Separate external accessory', 'external'))
-      exposure.value = state.unbridged ? 'external' : 'bridged'
-      grid.append(optionField(
-        'Apple Home exposure',
-        exposure,
-        'External accessories require separate pairing and may affect existing Apple Home automations.',
-      ))
-
-      const category = element('input', 'tuya-input tuya-mono')
-      category.id = `tuya-device-${device.id}-category`
-      category.type = 'text'
-      category.value = state.category
-      category.placeholder = `Detected: ${device.category || 'unknown'}`
-      category.setAttribute('list', 'tuyaCategoryOptions')
-      category.setAttribute('autocomplete', 'off')
-      category.dataset.deviceOption = 'category'
-      grid.append(optionField(
-        'Category override',
-        category,
-        'Leave blank to use the detected category. Choose a suggestion or enter a verified custom category code.',
-      ))
-
-      const adaptive = checkboxOption(
-        'Adaptive Lighting',
-        'Enable HomeKit Adaptive Lighting when brightness and color-temperature datapoints are available.',
-        state.adaptiveLighting,
-      )
-      adaptive.label.dataset.optionContext = 'adaptive'
-      adaptive.input.dataset.deviceOption = 'adaptiveLighting'
-      grid.append(adaptive.label)
-
-      const garage = checkboxOption(
-        'Use contact sensor for door state',
-        'Read garage-door state from doorcontact_state while continuing to command switch_1.',
-        state.garageDoorUseContactSensorForState,
-      )
-      garage.label.dataset.optionContext = 'garage'
-      garage.input.dataset.deviceOption = 'garageDoorState'
-      grid.append(garage.label)
-
-      const irMode = element('select', 'tuya-input')
-      irMode.id = `tuya-device-${device.id}-ir-mode`
-      irMode.dataset.deviceOption = 'irPowerOnMode'
-      irMode.append(
-        new Option('Cool', 'cool'),
-        new Option('Heat', 'heat'),
-        new Option('Auto', 'auto'),
-        new Option('Last mode', 'last'),
-      )
-      irMode.value = state.irAirConditionerPowerOnMode
-      const irField = optionField(
-        'IR AC plain Turn On mode',
-        irMode,
-        'Used when Apple Home turns on the IR air conditioner without selecting a target mode.',
-      )
-      irField.dataset.optionContext = 'ir-ac'
-      grid.append(irField)
-
-      const irLocalIp = element('input', 'tuya-input tuya-mono')
-      irLocalIp.id = `tuya-device-${device.id}-ir-local-ip`
-      irLocalIp.type = 'text'
-      irLocalIp.inputMode = 'decimal'
-      irLocalIp.placeholder = '192.168.1.50'
-      irLocalIp.value = state.irAirConditionerLocalIp
-      irLocalIp.dataset.deviceOption = 'irLocalIp'
-      const irLocalIpField = optionField(
-        'Physical thermostat LAN IP',
-        irLocalIp,
-        'Private IP from your router or Home Assistant. The QR-derived local key stays protected and is used automatically.',
-      )
-      irLocalIpField.dataset.optionContext = 'ir-ac'
-      grid.append(irLocalIpField)
-      block.append(grid)
-
-      const actions = element('div', 'tuya-option-actions')
-      const restart = element('span', 'tuya-help', pendingRestartDeviceIds.has(device.id)
-        ? 'Saved · restart Homebridge to apply this accessory change.'
-        : 'Changes affect Apple Home after Homebridge restarts.')
-      if (pendingRestartDeviceIds.has(device.id)) restart.classList.add('tuya-option-danger')
-      const save = element('button', 'tuya-button tuya-button-primary', 'Save accessory options')
-      save.type = 'button'
-      save.dataset.deviceOptionsSave = device.id
-      actions.append(restart, save)
-      block.append(actions)
-
-      const contextualState = () => {
-        const effectiveCategory = effectiveDeviceCategory(device, category.value.trim())
-        const adaptiveVisible = supportsAdaptiveLighting(device, effectiveCategory, state)
-        const garageVisible = effectiveCategory === 'ckmkzq' || state.garageDoorUseContactSensorForState
-        const irVisible = effectiveCategory === 'infrared_ac'
-          || state.irAirConditionerPowerOnMode !== 'cool'
-          || Boolean(state.irAirConditionerLocalIp)
-          || Object.prototype.hasOwnProperty.call(state.source.value || {}, 'irAirConditionerPowerOnMode')
-          || Object.prototype.hasOwnProperty.call(state.source.value || {}, 'irAirConditionerLocalIp')
-        adaptive.label.hidden = !adaptiveVisible
-        garage.label.hidden = !garageVisible
-        irField.hidden = !irVisible
-        irLocalIpField.hidden = !irVisible
-        return { adaptiveVisible, garageVisible, irVisible }
-      }
-
-      const formValue = () => {
-        const context = contextualState()
-        return {
-          hidden: !visibility.input.checked,
-          category: category.value.trim(),
-          unbridged: exposure.value === 'external',
-          adaptiveLighting: context.adaptiveVisible ? adaptive.input.checked : undefined,
-          garageDoorUseContactSensorForState: context.garageVisible ? garage.input.checked : undefined,
-          irAirConditionerPowerOnMode: context.irVisible ? irMode.value : undefined,
-          irAirConditionerLocalIp: context.irVisible ? irLocalIp.value.trim() : undefined,
-        }
-      }
-      contextualState()
-      const initialValue = JSON.stringify(formValue())
-      const updateSaveState = () => {
-        const changed = JSON.stringify(formValue()) !== initialValue
-        save.disabled = deviceOptionsSaving || !changed
-      }
-      for (const input of [visibility.input, exposure, category, adaptive.input, garage.input, irMode, irLocalIp]) {
-        input.addEventListener(input === category ? 'input' : 'change', updateSaveState)
-      }
-      save.addEventListener('click', () => saveDeviceOptions(device, formValue()))
-      updateSaveState()
-      return block
-    }
-
-    function renderDeviceInspector(device) {
-      const details = element('details', 'tuya-device-details')
-      details.append(element('summary', '', 'Configure accessory & inspect diagnostics'))
-      details.addEventListener('toggle', () => homebridge.fixScrollHeight())
-      const inspector = element('div', 'tuya-inspector')
-      const summaryGrid = element('div', 'tuya-inspector-grid')
-
-      const identityBlock = element('div', 'tuya-inspector-block')
-      identityBlock.append(element('h5', '', 'Identity'))
-      const identity = element('dl', 'tuya-kv')
-      appendKeyValues(identity, [
-        ['Device ID', device.id, true],
-        ['Product ID', device.productId, true],
-        ['Product', device.productName],
-        ['Category', device.category, true],
-        ['Home ID', device.homeId, true],
-      ])
-      identityBlock.append(identity)
-
-      const connectionBlock = element('div', 'tuya-inspector-block')
-      connectionBlock.append(element('h5', '', 'Connection'))
-      const connection = element('dl', 'tuya-kv')
-      appendKeyValues(connection, [
-        ['Status', titleCase(device.connection?.status)],
-        ['Transport', 'Tuya cloud'],
-        ['Topology', titleCase(device.connection?.topology)],
-        ['Setup', titleCase(device.connection?.setup)],
-      ])
-      connectionBlock.append(connection)
-      summaryGrid.append(identityBlock, connectionBlock)
-      inspector.append(summaryGrid)
-      inspector.append(renderDeviceOptions(device))
-
-      const schemaBlock = element('div', 'tuya-inspector-block')
-      schemaBlock.append(element('h5', '', `Datapoint schema (${(device.schema || []).length})`))
-      if ((device.schema || []).length) {
-        schemaBlock.append(diagnosticTable(['Code', 'Access', 'Type', 'Constraints'], device.schema.map(entry => [
-          element('td', 'tuya-mono', entry.code),
-          element('td', '', entry.mode || 'unknown'),
-          element('td', '', entry.type || 'Unknown'),
-          element('td', '', schemaPropertyLabel(entry)),
-        ])))
-      } else {
-        schemaBlock.append(element('div', 'tuya-empty', 'No safe schema metadata was returned for this device.'))
-      }
-      if (device.schemaOmittedCount) schemaBlock.append(element('p', 'tuya-diagnostic-note', `${device.schemaOmittedCount} additional schema item(s) were omitted by the safety limit.`))
-      inspector.append(schemaBlock)
-
-      const statusBlock = element('div', 'tuya-inspector-block')
-      statusBlock.append(element('h5', '', `Current status (${(device.status || []).length})`))
-      if ((device.status || []).length) {
-        statusBlock.append(diagnosticTable(['Code', 'Sanitized value'], device.status.map(entry => [
-          element('td', 'tuya-mono', entry.code),
-          element('td', entry.redacted ? 'tuya-status-hidden' : 'tuya-mono', entry.redacted ? 'Hidden by safety policy' : entry.displayValue),
-        ])))
-      } else {
-        statusBlock.append(element('div', 'tuya-empty', 'No safe status datapoints were returned for this device.'))
-      }
-      const redactedCount = (device.status || []).filter(entry => entry.redacted).length
-      if (redactedCount || device.statusOmittedCount) {
-        statusBlock.append(element('p', 'tuya-diagnostic-note', `${redactedCount} value(s) hidden and ${device.statusOmittedCount || 0} sensitive or excess item(s) omitted. Raw values are never available in this inspector.`))
-      }
-      inspector.append(statusBlock)
-
-      if (device.overrideDraft) {
-        const draftBlock = element('div', 'tuya-inspector-block')
-        const draftHeader = element('div', 'tuya-section-header')
-        const draftTitle = element('div')
-        draftTitle.append(element('h5', '', 'Safe deviceOverrides draft'), element('div', 'tuya-subtitle', 'Minimal valid identity/category entry. Add only the individual datapoint changes you intend.'))
-        const copy = element('button', 'tuya-button', 'Copy draft')
-        copy.type = 'button'
-        const draftText = JSON.stringify(device.overrideDraft, null, 2)
-        copy.addEventListener('click', async () => {
-          try {
-            await copyText(draftText)
-            homebridge.toast.success(`Override draft copied for ${device.name}.`, 'Device inspector')
-          } catch (error) {
-            homebridge.toast.error(errorMessage(error), 'Could not copy override draft')
-          }
-        })
-        draftHeader.append(draftTitle, copy)
-        const draft = element('pre', 'tuya-draft tuya-mono', draftText)
-        draft.setAttribute('aria-label', `Override draft for ${device.name}`)
-        draftBlock.append(draftHeader, draft)
-        inspector.append(draftBlock)
-      }
-      details.append(inspector)
-      return details
-    }
-
     function renderHomes() {
       const root = byId('tuyaDashboardHomes')
       root.replaceChildren()
@@ -1330,33 +597,17 @@
       })
     }
 
-    function renderCategoryOptions() {
-      const root = byId('tuyaCategoryOptions')
-      root.replaceChildren()
-      const entries = Array.isArray(about.deviceCategoryOptions) ? about.deviceCategoryOptions : []
-      entries.forEach(entry => {
-        if (!entry || typeof entry.code !== 'string' || !categoryPattern.test(entry.code)) return
-        const option = element('option')
-        option.value = entry.code
-        if (typeof entry.label === 'string' && entry.label) option.label = `${entry.label} (${entry.code})`
-        root.append(option)
-      })
-    }
-
     function renderDevices() {
       const root = byId('tuyaDashboardDevices')
       root.replaceChildren()
       const query = byId('tuyaDeviceSearch').value.trim().toLowerCase()
       const filter = byId('tuyaDeviceFilter').value
       const devices = (overview.devices || []).filter(device => {
-        const optionState = deviceOptionState(device)
-        const schemaCodes = (device.schema || []).map(entry => entry.code).join(' ')
-        const matchesText = !query || `${device.name} ${device.id} ${device.category} ${optionState.category} ${device.productName || ''} ${device.productId || ''} ${schemaCodes}`.toLowerCase().includes(query)
-        const connectionStatus = device.connection?.status || (device.online ? 'online' : 'offline')
+        const matchesText = !query || `${device.name} ${device.category} ${device.productName}`.toLowerCase().includes(query)
         const matchesFilter = filter === 'all'
-          || filter === connectionStatus
+          || (filter === 'online' && device.online)
+          || (filter === 'offline' && !device.online)
           || (filter === 'sub' && device.subDevice)
-          || (filter === 'hidden' && optionState.hidden)
         return matchesText && matchesFilter
       })
       if (!devices.length) {
@@ -1369,23 +620,15 @@
         return
       }
       devices.forEach(device => {
-        const optionState = deviceOptionState(device)
         const card = element('div', 'tuya-device-card')
         const head = element('div', 'tuya-card-head')
         const title = element('div', 'tuya-card-title')
-        title.append(element('h4', '', device.name), element('p', '', device.productName || `Tuya category ${device.category}`), element('p', 'tuya-mono', `Device ID · ${device.id}`))
+        title.append(element('h4', '', device.name), element('p', '', device.productName || `Tuya category ${device.category}`))
         head.append(deviceIcon(), title)
         const badges = element('div', 'tuya-badges')
-        const connectionStatus = device.connection?.status || (device.online ? 'online' : 'offline')
-        const effectiveCategory = effectiveDeviceCategory(device, optionState.category)
-        badges.append(badge(titleCase(connectionStatus), connectionStatus === 'online' ? 'success' : 'warning'), badge(effectiveCategory, 'primary'))
-        if (optionState.category && optionState.category !== device.category) badges.append(badge(`Detected ${device.category || 'unknown'}`))
-        if (optionState.hidden) badges.append(badge('Hidden', 'warning'))
-        if (optionState.unbridged) badges.append(badge('External'))
-        if (pendingRestartDeviceIds.has(device.id)) badges.append(badge('Restart required', 'warning'))
+        badges.append(badge(device.online ? 'Online' : 'Offline', device.online ? 'success' : 'warning'), badge(device.category || 'unknown', 'primary'))
         if (device.subDevice) badges.append(badge('Sub-device'))
-        badges.append(badge(`${(device.schema || []).length} schema`), badge(`${(device.status || []).length} status`))
-        card.append(head, badges, renderDeviceInspector(device))
+        card.append(head, badges)
         root.append(card)
       })
     }
@@ -1395,7 +638,7 @@
       if (options().projectType !== '3') {
         const candidate = storedQrCandidate()
         if (candidate) {
-          setCallout(message, `Tuya Developer Cloud is active, and stored ${appLabel(candidate.appSchema)} QR authorization is also available. Developer Cloud retains full IR remote support; QR mode can expose compatible air conditioners and static buttons from known virtual IR remotes.`, 'warning')
+          setCallout(message, `Tuya Developer Cloud is active, and stored ${appLabel(candidate.appSchema)} QR authorization is also available. Keep Developer Cloud for IR AC/remotes because Tuya's QR API does not expose their metadata or control.`, 'warning')
           byId('tuyaDashboardAction').textContent = 'Review connection'
           return
         }
@@ -1441,8 +684,8 @@
       notice.hidden = !candidate
       if (!candidate) return
       byId('tuyaStoredQrRecoveryTitle').textContent = `Stored ${appLabel(candidate.appSchema)} QR authorization found`
-      byId('tuyaStoredQrRecoveryMessage').textContent = `${candidate.username ? `Account ${candidate.username} is` : 'This account is'} already authorized. Switching to it does not require another scan. Compatible IR air conditioners and static buttons on known virtual IR remotes can use QR sharing commands.`
-      byId('tuyaUseStoredQr').textContent = 'Use QR authorization'
+      byId('tuyaStoredQrRecoveryMessage').textContent = `${candidate.username ? `Account ${candidate.username} is` : 'This account is'} already authorized. Switching to it does not require another scan, but Tuya's QR API cannot expose or control IR AC/remotes.`
+      byId('tuyaUseStoredQr').textContent = 'Use QR authorization (no IR remotes)'
     }
 
     function renderAuthStatus() {
@@ -1504,24 +747,6 @@
       rows.forEach(([label, value]) => root.append(element('dt', '', label), element('dd', '', value)))
     }
 
-    function renderSupportBundle() {
-      const ready = overview.connected === true
-      const homes = overview.homes || []
-      const devices = overview.devices || []
-      byId('tuyaCopySupportBundle').disabled = !ready
-      byId('tuyaDownloadSupportBundle').disabled = !ready
-      const runtimeNote = buildRuntimeSupportSummary(overview.runtimeDiagnostics)
-        ? ' Validated runtime health metadata is included.'
-        : ' No valid runtime health snapshot was found.'
-      setCallout(
-        byId('tuyaSupportBundleStatus'),
-        ready
-          ? `Ready: ${homes.length} home summary item(s) and ${devices.length} pseudonymized device diagnostic(s). No configuration or raw values are included.${runtimeNote}`
-          : 'Refresh a connected QR account to prepare a support bundle.',
-        ready ? 'success' : '',
-      )
-    }
-
     function syncFormsFromConfig() {
       ensureDefaults()
       const value = options()
@@ -1534,22 +759,11 @@
       byId('tuyaDeveloperApp').value = value.appSchema || 'tuyaSmart'
       byId('tuyaUsername').value = value.username || ''
       byId('tuyaPassword').value = value.password || ''
-      byId('tuyaQrCloudEnabled').checked = value.developerCloudFallback?.enabled === true
-        || value.developerCloudFallback?.enabled === 'true'
-      byId('tuyaQrCloudEndpoint').value = value.developerCloudFallback?.endpoint || ''
-      byId('tuyaQrCloudAccessId').value = value.developerCloudFallback?.accessId || ''
-      byId('tuyaQrCloudAccessKey').value = value.developerCloudFallback?.accessKey || ''
-      syncDeveloperCloudFallbackControls()
       byId('tuyaManualHomes').value = Array.isArray(value.homeWhitelist) ? value.homeWhitelist.join('\n') : ''
       byId('tuyaPlatformName').value = platform.name || 'Tuya'
       byId('tuyaWeather').checked = value.generateWeatherAccessory === true
       byId('tuyaWeatherApi').value = value.weatherAPI || 'open-meteo'
       byId('tuyaForceIpv4').checked = value.forceIPv4 === true
-      byId('tuyaCapabilityAutoDetection').checked = value.capabilityAutoDetection === true
-      byId('tuyaEnergyHistoryEnabled').checked = value.energyHistory?.enabled === true
-      byId('tuyaEnergyRetentionDays').value = value.energyHistory?.retentionDays || 30
-      byId('tuyaEnergySampleMinutes').value = value.energyHistory?.sampleIntervalMinutes || 5
-      syncEnergyHistoryControls()
       byId('tuyaDebug').checked = value.debug === true
       byId('tuyaDebugLevel').value = value.debugLevel || ''
     }
@@ -1559,14 +773,6 @@
       if (value.projectType === '3') {
         value.appSchema = byId('tuyaAppSchema').value
         value.userCode = byId('tuyaUserCode').value.trim()
-        value.developerCloudFallback ||= {}
-        value.developerCloudFallback.enabled = byId('tuyaQrCloudEnabled').checked
-        value.developerCloudFallback.endpoint = byId('tuyaQrCloudEndpoint').value || undefined
-        value.developerCloudFallback.accessId = byId('tuyaQrCloudAccessId').value.trim()
-        const productAccessKey = byId('tuyaQrCloudAccessKey').value
-        if (productAccessKey || !value.developerCloudFallback.accessKey) {
-          value.developerCloudFallback.accessKey = productAccessKey
-        }
       } else {
         value.endpoint = byId('tuyaEndpoint').value.trim() || undefined
         value.accessId = byId('tuyaAccessId').value.trim()
@@ -1588,11 +794,6 @@
       value.generateWeatherAccessory = byId('tuyaWeather').checked
       value.weatherAPI = byId('tuyaWeatherApi').value
       value.forceIPv4 = byId('tuyaForceIpv4').checked
-      value.capabilityAutoDetection = byId('tuyaCapabilityAutoDetection').checked
-      value.energyHistory ||= {}
-      value.energyHistory.enabled = byId('tuyaEnergyHistoryEnabled').checked
-      value.energyHistory.retentionDays = Number(byId('tuyaEnergyRetentionDays').value)
-      value.energyHistory.sampleIntervalMinutes = Number(byId('tuyaEnergySampleMinutes').value)
       value.debug = byId('tuyaDebug').checked
       value.debugLevel = byId('tuyaDebugLevel').value.trim() || undefined
     }
@@ -1600,28 +801,9 @@
     function validateAccount() {
       const value = options()
       if (value.projectType === '3' && !value.userCode) throw new Error('Enter the User Code from the selected Tuya app.')
-      if (value.projectType === '3' && value.developerCloudFallback?.enabled
-        && (!value.developerCloudFallback.endpoint
-          || !value.developerCloudFallback.accessId
-          || !value.developerCloudFallback.accessKey)) {
-        throw new Error('Select the Developer Cloud data center and enter its Access ID and Access Secret.')
-      }
       if ((value.projectType === '1' || value.projectType === '2') && (!value.accessId || !value.accessKey)) throw new Error('Access ID and Access Secret are required.')
       if (value.projectType === '1' && !value.endpoint) throw new Error('A cloud endpoint is required for a Custom project.')
       if (value.projectType === '2' && (!value.countryCode || !value.username || !value.password)) throw new Error('Country code, app username, and app password are required for a Tuya Developer Cloud project.')
-      if (!Number.isInteger(value.energyHistory?.retentionDays) || value.energyHistory.retentionDays < 1 || value.energyHistory.retentionDays > 365) throw new Error('Energy retention must be a whole number from 1 to 365 days.')
-      if (!Number.isInteger(value.energyHistory?.sampleIntervalMinutes) || value.energyHistory.sampleIntervalMinutes < 1 || value.energyHistory.sampleIntervalMinutes > 1440) throw new Error('Energy sample interval must be a whole number from 1 to 1440 minutes.')
-    }
-
-    function syncEnergyHistoryControls() {
-      const enabled = byId('tuyaEnergyHistoryEnabled').checked
-      byId('tuyaEnergyRetentionDays').disabled = !enabled
-      byId('tuyaEnergySampleMinutes').disabled = !enabled
-    }
-
-    function syncDeveloperCloudFallbackControls() {
-      const enabled = byId('tuyaQrCloudEnabled').checked
-      byId('tuyaQrCloudFields').querySelectorAll('input, select').forEach(field => { field.disabled = !enabled })
     }
 
     async function savePlatform(message = 'Configuration saved. Restart Homebridge to apply accessory changes.') {
@@ -1632,70 +814,6 @@
       await homebridge.savePluginConfig()
       if (message) homebridge.toast.success(message, 'Tuya Ultimate')
       renderAll()
-    }
-
-    function setOptionalBoolean(target, key, value) {
-      if (value === undefined) return
-      if (value) target[key] = true
-      else delete target[key]
-    }
-
-    async function saveDeviceOptions(device, value) {
-      if (deviceOptionsSaving) return
-      if (value.category === 'hidden') {
-        homebridge.toast.error('Use “Show in Apple Home” to hide this accessory.', 'Invalid category override')
-        return
-      }
-      if (value.category && !categoryPattern.test(value.category)) {
-        homebridge.toast.error('Category codes must start with a letter or number and contain only letters, numbers, dot, underscore, or hyphen.', 'Invalid category override')
-        return
-      }
-      if (value.irAirConditionerLocalIp && !isPrivateIPv4(value.irAirConditionerLocalIp)) {
-        homebridge.toast.error('Enter a private IPv4 address such as 192.168.1.50.', 'Invalid thermostat LAN IP')
-        return
-      }
-
-      const source = overrideSourceForDevice(device)
-      const targetId = source.kind === 'device' ? source.value.id : device.id
-      const target = normalizedOverride(source.value, targetId)
-      setOptionalBoolean(target, 'hidden', value.hidden)
-      setOptionalBoolean(target, 'unbridged', value.unbridged)
-      setOptionalBoolean(target, 'adaptiveLighting', value.adaptiveLighting)
-      setOptionalBoolean(target, 'garageDoorUseContactSensorForState', value.garageDoorUseContactSensorForState)
-      if (value.category) target.category = value.category
-      else delete target.category
-      if (value.irAirConditionerPowerOnMode && value.irAirConditionerPowerOnMode !== 'cool') {
-        target.irAirConditionerPowerOnMode = value.irAirConditionerPowerOnMode
-      } else if (value.irAirConditionerPowerOnMode === 'cool') {
-        delete target.irAirConditionerPowerOnMode
-      }
-      if (value.irAirConditionerLocalIp) target.irAirConditionerLocalIp = value.irAirConditionerLocalIp
-      else delete target.irAirConditionerLocalIp
-
-      const hadOverrides = Array.isArray(options().deviceOverrides)
-      const previousOverrides = cloneConfigValue(options().deviceOverrides)
-      const nextOverrides = cloneConfigValue(configuredOverrides())
-      const exactIndex = nextOverrides.findIndex(config => config?.id === device.id || (device.uuid && config?.id === device.uuid))
-      if (exactIndex >= 0) nextOverrides[exactIndex] = target
-      else nextOverrides.push(target)
-      options().deviceOverrides = nextOverrides
-
-      deviceOptionsSaving = true
-      document.querySelectorAll('[data-device-options-save]').forEach(button => { button.disabled = true })
-      try {
-        await homebridge.updatePluginConfig([platform])
-        await homebridge.savePluginConfig()
-        pendingRestartDeviceIds.add(device.id)
-        homebridge.toast.success(`Accessory options saved for ${device.name}. Restart Homebridge to apply them.`, 'Restart required')
-      } catch (error) {
-        if (hadOverrides) options().deviceOverrides = previousOverrides
-        else delete options().deviceOverrides
-        homebridge.toast.error(errorMessage(error), 'Could not save accessory options')
-      } finally {
-        deviceOptionsSaving = false
-        renderDevices()
-        homebridge.fixScrollHeight()
-      }
     }
 
     async function refreshAccount(showErrors = true) {
@@ -1736,6 +854,7 @@
     async function useStoredQrAccount() {
       const candidate = storedQrCandidate()
       if (!candidate) throw new Error('No unambiguous stored QR authorization is available.')
+      if (!window.confirm("Switch to QR authorization? Tuya's QR account API does not provide IR remote metadata or control, so IR AC/remotes will be omitted. Keep Tuya Developer Cloud if you need them.")) return
       const value = options()
       value.projectType = '3'
       value.userCode = candidate.userCode
@@ -1750,7 +869,6 @@
 
     async function startQrLogin() {
       stopPolling()
-      byId('tuyaPostQrChoice').hidden = true
       collectAccountForm()
       try {
         validateAccount()
@@ -1762,6 +880,7 @@
           userCode: value.userCode,
           clientId: value.clientId,
           appSchema: value.appSchema,
+          endpoint: value.endpoint,
           qrSchema: value.qrSchema,
         })
         qrToken = result.qrToken
@@ -1793,13 +912,10 @@
         if (result.state === 'pending') return
         stopPolling()
         accountStatus = { connected: true, matchesConfiguration: true, username: result.username }
-        byId('tuyaQrPanel').hidden = true
-        byId('tuyaPostQrChoice').hidden = false
-        setCallout(byId('tuyaAuthStatus'), 'Authorization complete. Loading homes and devices…', 'success')
+        setCallout(byId('tuyaQrStatus'), 'Authorization complete. Loading homes and devices…', 'success')
         homebridge.toast.success('Tuya account authorization complete.', 'Connected')
-        byId('tuyaPostQrChoice').scrollIntoView({ behavior: 'smooth', block: 'start' })
-        homebridge.fixScrollHeight()
         await refreshAccount(false)
+        window.setTimeout(() => { byId('tuyaQrPanel').hidden = true; homebridge.fixScrollHeight() }, 1400)
       } catch (error) {
         stopPolling()
         setCallout(byId('tuyaQrStatus'), `${errorMessage(error)} Generate a fresh code and try again.`, 'danger')
@@ -1809,23 +925,6 @@
     function stopPolling() {
       if (pollTimer) window.clearInterval(pollTimer)
       pollTimer = undefined
-    }
-
-    function configureProductAccessAfterQr() {
-      const value = options()
-      value.developerCloudFallback ||= {}
-      value.developerCloudFallback.enabled = true
-      byId('tuyaQrCloudEnabled').checked = true
-      syncDeveloperCloudFallbackControls()
-      byId('tuyaPostQrChoice').hidden = true
-      byId('tuyaProductAccess').scrollIntoView({ behavior: 'smooth', block: 'start' })
-      window.setTimeout(() => byId('tuyaQrCloudEndpoint').focus(), 250)
-      homebridge.fixScrollHeight()
-    }
-
-    function finishQrOnly() {
-      byId('tuyaPostQrChoice').hidden = true
-      selectTab('dashboard')
     }
 
     function selectTab(name) {
@@ -1852,14 +951,12 @@
       renderProgress()
       renderDashboardMessage()
       renderHomes()
-      renderCategoryOptions()
       renderDevices()
       renderMethod()
       renderStoredQrRecovery()
       renderAuthStatus()
       renderHomePicker()
       renderPackageDetails()
-      renderSupportBundle()
       byId('tuyaLastUpdated').textContent = lastUpdatedAt ? `Last checked ${lastUpdatedAt.toLocaleTimeString()}` : 'Authorization has not been checked yet.'
       homebridge.fixScrollHeight()
     }
@@ -1868,7 +965,6 @@
     document.querySelectorAll('[data-project-type]').forEach(button => button.addEventListener('click', () => {
       collectAccountForm()
       options().projectType = button.dataset.projectType
-      byId('tuyaPostQrChoice').hidden = true
       accountStatus = { connected: false }
       overview = { connected: false, homes: [], devices: [] }
       renderAll()
@@ -1884,17 +980,10 @@
     byId('tuyaStartQr').addEventListener('click', startQrLogin)
     byId('tuyaRegenerateQr').addEventListener('click', startQrLogin)
     byId('tuyaCancelQr').addEventListener('click', () => { stopPolling(); byId('tuyaQrPanel').hidden = true; homebridge.fixScrollHeight() })
-    byId('tuyaConfigureProductAccess').addEventListener('click', configureProductAccessAfterQr)
-    byId('tuyaFinishQrOnly').addEventListener('click', finishQrOnly)
     byId('tuyaSaveAccount').addEventListener('click', () => savePlatform().catch(error => homebridge.toast.error(errorMessage(error), 'Could not save account settings')))
-    byId('tuyaSaveQrCloud').addEventListener('click', () => savePlatform().catch(error => homebridge.toast.error(errorMessage(error), 'Could not save Developer Cloud product access')))
     byId('tuyaSaveHomes').addEventListener('click', () => savePlatform().then(() => refreshAccount(false)).catch(error => homebridge.toast.error(errorMessage(error), 'Could not save home selection')))
     byId('tuyaSaveSettings').addEventListener('click', () => savePlatform().catch(error => homebridge.toast.error(errorMessage(error), 'Could not save settings')))
-    byId('tuyaEnergyHistoryEnabled').addEventListener('change', syncEnergyHistoryControls)
-    byId('tuyaQrCloudEnabled').addEventListener('change', syncDeveloperCloudFallbackControls)
     byId('tuyaToggleSchema').addEventListener('click', toggleSchema)
-    byId('tuyaCopySupportBundle').addEventListener('click', copySupportBundle)
-    byId('tuyaDownloadSupportBundle').addEventListener('click', downloadSupportBundle)
     byId('tuyaDeviceSearch').addEventListener('input', renderDevices)
     byId('tuyaDeviceFilter').addEventListener('change', renderDevices)
     byId('tuyaAppSchema').addEventListener('change', () => {
@@ -1910,7 +999,6 @@
       byId('tuyaAppStat').textContent = 'QR login'
       byId('tuyaHomesStat').textContent = '—'
       byId('tuyaDevicesStat').textContent = '—'
-      setInitialLoading(false)
       return
     }
 
@@ -1925,14 +1013,14 @@
           homebridge.request('/about'),
           homebridge.request('/sharing/accounts'),
         ])
-        platform = platformFromConfigPayload(configs) || platform
+        platform = configs[0] || platform
         about = packageInfo || {}
         storedAccounts = Array.isArray(storedAccountResponse?.accounts) ? storedAccountResponse.accounts : []
         ensureDefaults()
         syncFormsFromConfig()
         renderAll()
         homebridge.addEventListener('configChanged', event => {
-          platform = platformFromConfigPayload(event.data) || platform
+          platform = event.data || platform
           ensureDefaults()
           syncFormsFromConfig()
           renderAll()
@@ -1941,8 +1029,6 @@
       } catch (error) {
         homebridge.toast.error(errorMessage(error), 'Could not load Tuya Ultimate settings')
         renderAll()
-      } finally {
-        setInitialLoading(false)
       }
     })
   })()

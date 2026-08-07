@@ -5,12 +5,10 @@
 The main function of `deviceOverrides` is to convert "non-standard schema" to "standard schema", making the device compatible with this plugin.
 
 Before configuring, you may need to:
-
 - Have basic programming skills in JavaScript (Only used in `onGet`/`onSet` handlers).
 - Understand the concept of device schema (also known as Data Type): [Tuya IoT Development Platform > Cloud Development > Standard Instruction Set > Data Type](https://developer.tuya.com/en/docs/iot/datatypedescription?id=K9i5ql2jo7j1k)
 - Read the documentation of your device product in [SUPPORTED_DEVICES.md](./SUPPORTED_DEVICES.md).
-- In QR mode, refresh the settings dashboard and open a device. Common accessory options can be saved there; the copied override draft and diagnostics remain bounded and sanitized.
-- When the inspector is unavailable, obtain device info JSON from `/path/to/persist/TuyaDeviceList.xxx.json` (the full path can be found from logs). This raw file can include private identifiers, locations, IP addresses, URLs, and values; never attach it without manual sanitization.
+- Obtain device info json from `/path/to/persist/TuyaDeviceList.xxx.json` (the full path can be found from logs).
 - Locate any "incorrect schema" in your device info json, and convert it to the "correct schema".
 
 
@@ -19,14 +17,10 @@ Before configuring, you may need to:
 `options.deviceOverrides` is an **optional** array of device overriding config objects, which is used for converting "non-standard schema" to "standard schema", making the device compatible with this plugin. The structure of each element in the array is described as follows:
 
 - `id` - **required**: Device ID, Product ID, Scene ID, or `global`.
-- `hidden` - **optional**: Hide the device, product, or scene from Apple Home while retaining Tuya discovery. Defaults to `false`. The legacy `category: "hidden"` form remains supported.
-- `category` - **optional**: Device category code. See [SUPPORTED_DEVICES.md](./SUPPORTED_DEVICES.md). **⚠️Overriding this property may lead to unexpected behaviors and exceptions, so restart Homebridge after making changes.**
+- `category` - **optional**: Device category code. See [SUPPORTED_DEVICES.md](./SUPPORTED_DEVICES.md). Also you can use `hidden` to hide the device, product, or scene. **⚠️Overriding this property may lead to unexpected behaviors and exceptions, so please remove the accessory cache after making changes.**
 - `unbridged` - **optional**: Unbridge accessories. Defaults to `false`.
 - `adaptiveLighting` - **optional**: Adaptive Lighting. Defaults to `false`. Not all light device support this feature, please use it on demand.
 - `garageDoorUseContactSensorForState` - **optional**: For garage door controllers. When `true`, `CurrentDoorState` and `TargetDoorState` reads use `doorcontact_state` only, while set commands still use `switch_1`. Defaults to `false`.
-- `irAirConditionerPowerOnMode` - **optional**: For IR air conditioners, the mode used by a plain Apple Home **Turn On** request. One of `cool` (default), `heat`, `auto`, or `last`. If the selected mode is unsupported, the handler chooses an available climate mode.
-- `irAirConditionerLocalIp` - **optional**: Private LAN address of a QR-authorized physical IR thermostat. Compatible protocol-3.3 controllers use the QR-derived local key in memory, so the key does not need to be copied into configuration.
-- `localControl` - **optional, beta**: Per-device Tuya LAN protocol 3.3 command routing. Requires a route mode, verified IP/local key, and explicit schema-code-to-numeric-DP mappings. It does not provide local discovery or state updates.
 - `schema` - **optional**: An array of schema overriding config objects, used for describing datapoint (DP). When your device has non-standard DP, you need to transform them manually with configuration. Each element in the schema array is described as follows:
   - `code` - **required**: DP code.
   - `newCode` - **optional**: New DP code.
@@ -36,130 +30,8 @@ Before configuring, you may need to:
   - `onSet` - **optional**: A one-line JavaScript code to convert the new value to the old value. The function is called with two arguments: `device` and `value`. Returning `undefined` means to skip sending the command.
   - `hidden` - **optional**: Hide the schema. Defaults to `false`.
 
-Platform-level advanced options live directly under `options` rather than inside a device override:
-
-- `capabilityAutoDetection` - **optional**: Defaults to `false`. Conservatively selects an existing handler for an otherwise unsupported category only when recognized standard datapoints are present. An explicit override to a registered category takes precedence.
-- `energyHistory` - **optional**: Local retention settings for allowlisted energy reports observed while the plugin is running. Disabled by default.
-- `developerCloudFallback` - **optional, QR mode only**: Secondary Tuya Developer Cloud credentials for IR, lock, and camera product endpoints. It does not replace QR discovery, MQTT state, or general commands.
-
 
 ## Examples
-
-### Choose the IR air-conditioner power-on mode
-
-Apple Home can send an `Active` write without first choosing a target climate mode. Set the desired behavior on the IR remote's device override. `cool` is the default; `last` reuses the last supported operating mode remembered by the accessory.
-
-```json
-{
-  "options": {
-    "deviceOverrides": [
-      {
-        "id": "{ir_remote_device_id}",
-        "irAirConditionerPowerOnMode": "last"
-      }
-    ]
-  }
-}
-```
-
-Valid values are `cool`, `heat`, `auto`, and `last`. The accessory falls back to an available supported mode when the requested profile is not present in the remote's mode table. This option protects a plain power-on action from Apple Home's default Auto replay; while the accessory is already active, supported target-mode writes continue to change its mode normally.
-
-### Enable conservative capability detection
-
-```json
-{
-  "options": {
-    "capabilityAutoDetection": true
-  }
-}
-```
-
-Detection runs only when the product ID and category have no registered handler. It matches narrow combinations of standard Tuya codes, then applies the selected handler's normal required-schema validation. It does not rename vendor datapoints, guess units, decode arbitrary payloads, or supersede an explicit device category override. Check the startup log for the inferred profile and matched codes before relying on the mapping.
-
-### Enable local energy history
-
-```json
-{
-  "options": {
-    "energyHistory": {
-      "enabled": true,
-      "retentionDays": 30,
-      "sampleIntervalMinutes": 5
-    }
-  }
-}
-```
-
-The plugin writes owner-only `TuyaEnergyHistory.json` in the Homebridge persist directory. It records only numeric `cur_current`, `cur_power`, `cur_voltage`, `add_ele`, `forward_energy_total`, `reverse_energy_total`, and scalar `phase_a_*`, `phase_b_*`, or `phase_c_*` current/power/voltage reports. Schema scale and unit metadata are retained.
-
-`retentionDays` accepts 1–365 and `sampleIntervalMinutes` accepts 1–1440. The sample interval controls bucket merging, not polling. No file or sample is created until a device supplies a recognized metric. A global safety cap retains the newest 100,000 samples across devices. The file contains actual device IDs, names, timestamps, and readings and is not suitable as a sanitized issue attachment. This feature does not import Tuya app/cloud history or create HomeKit history.
-
-### Add a QR-mode Developer Cloud product fallback
-
-```json
-{
-  "options": {
-    "projectType": "3",
-    "userCode": "{app_user_code}",
-    "appSchema": "tuyaSmart",
-    "developerCloudFallback": {
-      "enabled": true,
-      "accessId": "{developer_cloud_access_id}",
-      "accessKey": "{developer_cloud_access_secret}",
-      "endpoint": "https://openapi.tuyain.com"
-    }
-  }
-}
-```
-
-The project must be linked to the app account, use the correct data-center endpoint, and have the relevant IR Control Hub, Smart Lock, or IoT Video API subscription. The secondary connection authenticates with a Tuya project token, matching the Tuya Smart IR AC Home Assistant integration; it does not use the app username or password. When authentication succeeds, product-specific IR metadata/commands, lock operations, and camera RTSP allocation use it. Homes, devices, standard commands, and QR MQTT live updates remain on the QR connection. An unsuccessful Tuya response is logged and leaves only the primary QR permissions active.
-
-The Access Secret is stored in Homebridge `config.json`. Restrict access to that file and never include this block in an issue report.
-
-### Beta Tuya LAN 3.3 command routing
-
-Start with `hybrid` so a rejected local command falls back to the existing Tuya Cloud path:
-
-```json
-{
-  "options": {
-    "deviceOverrides": [
-      {
-        "id": "{device_id}",
-        "localControl": {
-          "mode": "hybrid",
-          "ip": "192.0.2.10",
-          "localKey": "0123456789abcdef",
-          "protocolVersion": "3.3",
-          "timeoutMs": 3000,
-          "dpMap": [
-            {
-              "code": "switch_1",
-              "dpId": 1
-            }
-          ]
-        }
-      }
-    ]
-  }
-}
-```
-
-Replace every example value. The `localKey` must be exactly 16 UTF-8 bytes. A valid, stable IP must either be configured here or already be present on the discovered device, and it must be reachable from Homebridge. Each schema code that can be sent in a command must have a verified positive numeric `dpId`; the plugin intentionally does not derive DP IDs from order or names.
-
-Route behavior:
-
-- `cloud`: use the normal cloud command path; local settings are ignored.
-- `hybrid`: validate and send the complete command locally, then use the original cloud request if local mapping, framing, connection, timeout, or device acknowledgement fails.
-- `local`: attempt LAN only and surface any error to HomeKit; there is no cloud fallback.
-
-This beta sends protocol 3.3 control frames only. It does not scan the LAN, negotiate or retrieve local keys, discover IP changes, support protocol 3.4/3.5, poll state, or listen for local state updates. Startup discovery, schema retrieval, scenes, and MQTT reports still require the configured cloud connection. A device remaining controllable locally during a brief cloud command outage does not make the plugin fully local.
-
-### Use sanitized diagnostics safely
-
-For connected QR accounts, each device in the settings dashboard offers explicit-save controls for visibility, category, bridge exposure, and compatible accessory options. Saving an inherited product or global override creates an exact device override that preserves its advanced schema and local-control fields without displaying sensitive values. A Homebridge restart is required. The diagnostic inspector still hides sensitive datapoint codes and non-scalar values before rendering, and **Copy draft** remains an inert minimal starting point.
-
-For issue reports, prefer **Sanitized support bundle → Copy bundle** or **Download JSON**. That export pseudonymizes home/device references and removes real names and IDs, product IDs, configuration, credentials, locations, URLs, local keys, override drafts, enum ranges, and all datapoint values. The inspector itself intentionally shows local identity fields, so a screenshot is not equivalent to the support bundle. Developer-project modes do not currently populate this dashboard inventory.
 
 ### Change category code
 
@@ -177,7 +49,7 @@ For issue reports, prefer **Sanitized support bundle → Copy bundle** or **Down
 
 ### Hide device / scene
 
-Use the dedicated `hidden` flag. The legacy `category: "hidden"` form is still accepted.
+Just the same way as changing category code.
 
 ```js
 {
@@ -185,7 +57,7 @@ Use the dedicated `hidden` flag. The legacy `category: "hidden"` form is still a
     // ...
     "deviceOverrides": [{
       "id": "{device_id_or_scene_id}",
-      "hidden": true
+      "category": "hidden"
     }]
   }
 }

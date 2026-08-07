@@ -73,14 +73,13 @@ export default class CameraAccessory extends BaseAccessory {
     this.platform.config.cameras?.forEach(camera => {
       const cameraId = camera.deviceId ?? uuidFromSeed(camera.rtspUrl);
       if (cameraId === this.device.id) {
-        this.log.info('Using configured RTSP source for camera.');
+        this.log.info('Using RTSP URL from config for camera:', camera.rtspUrl);
         this.device['camera'] = camera;
       }
     });
 
     this.stream = await TuyaStreamingDelegate.create(this);
     this.accessory.configureController(this.stream.controller);
-    this.stream.configureRecordingAudioActive();
   }
 
   configureFloodLight() {
@@ -114,10 +113,6 @@ export default class CameraAccessory extends BaseAccessory {
       || this.accessory.addService(this.Service.MotionSensor, this.accessory.displayName + ' Motion Detect');
   }
 
-  hasMotionRecordingTrigger() {
-    return Boolean(this.getSchema(...SCHEMA_CODE.MOTION_DETECT));
-  }
-
   async onDeviceStatusUpdate(status: TuyaDeviceStatus[]) {
     super.onDeviceStatusUpdate(status);
 
@@ -146,24 +141,17 @@ export default class CameraAccessory extends BaseAccessory {
       return;
     }
 
-    if (typeof status.value !== 'string' || status.value.length === 0 || status.value.length > 256 * 1024) {
-      return;
-    }
-    const data = Buffer.from(status.value, 'base64').toString('binary');
+    const data = Buffer.from(status.value as string, 'base64').toString('binary');
     if (data.length === 0) {
       return;
     }
 
-    this.log.info('Motion event detected.');
+    this.log.info('Motion event:', data);
     const characteristic = this.getMotionService().getCharacteristic(this.Characteristic.MotionDetected);
-    if (characteristic.value !== true) {
-      this.stream?.markRecordingEvent();
-    }
     characteristic.updateValue(true);
 
     this.timer && clearTimeout(this.timer);
     this.timer = setTimeout(() => characteristic.updateValue(false), 30 * 1000);
-    this.timer.unref();
   }
 
 }

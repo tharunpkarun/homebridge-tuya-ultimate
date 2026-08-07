@@ -1,8 +1,6 @@
-import TuyaSharingAPI, { TuyaSharingRequestError } from '../core/TuyaSharingAPI';
+import TuyaSharingAPI from '../core/TuyaSharingAPI';
 import TuyaSharingMQ from '../core/TuyaSharingMQ';
 import { convertSharingStatus } from '../core/TuyaSharingStrategy';
-import TuyaLanProtocol33Client from '../local/TuyaLanProtocol33';
-import { TuyaLocalClient } from '../local/TuyaLocalCommandRouter';
 import TuyaDevice, {
   TuyaDeviceSchema,
   TuyaDeviceSchemaMode,
@@ -23,59 +21,10 @@ type RawSpecification = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RawDevice = Record<string, any>;
 
-const SHARING_IR_AC_REQUIRED_FUNCTIONS = ['M', 'PowerOff', 'PowerOn', 'T'] as const;
-const SHARING_IR_AC_OPTIONAL_FUNCTIONS = ['F'] as const;
-const SHARING_IR_AC_STATUS_CODES = ['power', 'mode', 'temp', 'wind'] as const;
-const SHARING_IR_REMOTE_CATEGORIES = new Set([
-  'infrared_airpurifier',
-  'infrared_amplifier',
-  'infrared_box',
-  'infrared_fan',
-  'infrared_humidifier',
-  'infrared_light',
-  'infrared_projector',
-  'infrared_stb',
-  'infrared_tv',
-  'infrared_waterheater',
-]);
-const SHARING_IR_AC_DEFAULT_TEMPERATURE = 25;
-const SHARING_IR_AC_MAX_RANGE_SIZE = 100;
-const SHARING_IR_MAX_MAPPING_ENTRIES = 256;
-const DIRECT_IR_THERMOSTAT_CATEGORY = 'hwktwkq';
-const DIRECT_IR_THERMOSTAT_PRODUCTS = new Set(['aqlyorlybbtn6ox7']);
-const DIRECT_IR_THERMOSTAT_DEFAULT_CODES = {
-  power: 'infared_switch',
-  temperature: 'target_temp',
-  mode: 'mode',
-  fan: 'fan_level',
-} as const;
-const DIRECT_IR_THERMOSTAT_MODES = ['cold', 'warm', 'auto', 'air', 'dehumidify'] as const;
-const DIRECT_IR_THERMOSTAT_FANS = ['auto', 'low', 'middle', 'high'] as const;
-const DIRECT_IR_THERMOSTAT_DP_BY_CODE: Record<string, number> = {
-  infared_switch: 1,
-  switch: 1,
-  temp_current: 2,
-  target_temp: 3,
-  temp_set: 3,
-  mode: 4,
-  fan_level: 5,
-  fan_speed_enum: 5,
-  humidity_current: 12,
-};
-
-type SharingLanClient = TuyaLocalClient & {
-  query?: (device: { id: string; ip: string; localKey: string; timeoutMs?: number }) => Promise<Record<string, unknown>>;
-};
-
 export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
   public readonly sharingMq: TuyaSharingMQ;
-  private readonly sharingLocalKeys = new Map<string, string>();
 
-  constructor(
-    public readonly sharingApi: TuyaSharingAPI,
-    debug = false,
-    private readonly sharingLanClient: SharingLanClient = new TuyaLanProtocol33Client(),
-  ) {
+  constructor(public readonly sharingApi: TuyaSharingAPI, debug = false) {
     const messageBus = new TuyaSharingMQ(sharingApi);
     super(sharingApi, debug, messageBus);
     this.sharingMq = messageBus;
@@ -96,28 +45,25 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
   }
 
   async updateDevices(homeIDList: string[]): Promise<TuyaDevice[]> {
-    this.ownerIDs = [...homeIDList];
     const devices: TuyaDevice[] = [];
     for (const homeId of homeIDList) {
       const response = await this.api.get('/v1.0/m/life/ha/home/devices', { homeId });
       if (!response.success) {
-        throw new TuyaSharingRequestError(
-          `Tuya account device inventory failed (${response.code}): ${response.msg}`,
-          true,
-        );
+        this.log.warn('Get devices failed for home %s: %s', homeId, response.msg);
+        continue;
       }
       for (const raw of response.result as RawDevice[]) {
         devices.push(await this.normalizeDevice(raw, homeId));
       }
     }
     this.devices = deduplicateDevices(devices);
-    const discoveredIDs = new Set(this.devices.map(device => device.id));
-    for (const deviceID of this.sharingLocalKeys.keys()) {
-      if (!discoveredIDs.has(deviceID)) {
-        this.sharingLocalKeys.delete(deviceID);
-      }
-    }
-    this.updateSharingSubscriptions(homeIDList);
+    this.sharingMq.updateSubscriptions(
+      homeIDList,
+      this.devices.filter(device => device.id && device.set_up !== false).map(device => ({
+        id: device.id,
+        supportLocal: device.support_local === true,
+      })),
+    );
     return this.devices;
   }
 
@@ -127,106 +73,24 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       return;
     }
 
-    const sharingAirConditioners = infraredRemotes.filter(isSharingInfraredAC);
-    const sharingGenericRemotes = infraredRemotes.filter(isSharingInfraredRemote);
-    const sharingRemotes = [...sharingAirConditioners, ...sharingGenericRemotes];
-    const sharingSchemas = new Map(sharingRemotes.map(device => [device, device.schema]));
-    const sharingRemoteKeys = new Map(sharingRemotes.map(device => [device, device.remote_keys]));
-    for (const device of sharingAirConditioners.filter(device => !device.parent_id)) {
-      const thermostat = this.findDirectInfraredThermostat(device);
-      if (thermostat) {
-        device.parent_id = thermostat.id;
-        this.log.info(
-          'Linked QR-authorized IR air conditioner %s to physical thermostat %s.',
-          device.name,
-          thermostat.name,
-        );
-      }
-    }
-    if (this.hasProductApiFallback()) {
-      // Prefer the richer product API when the user configured it. If it does
-      // not resolve a remote, the normal sharing functions remain a safe fallback.
-      for (const device of sharingAirConditioners) {
-        device.infrared_ac_command_mode = undefined;
-      }
-      await super.updateInfraredRemotes(allDevices);
-    } else {
-      const legacyRemotes = infraredRemotes.filter(device => !sharingRemotes.includes(device));
-      if (legacyRemotes.length > 0) {
-        const legacyDevices = allDevices.filter(device => !sharingRemotes.includes(device));
-        await super.updateInfraredRemotes(legacyDevices);
-      }
-    }
+    await super.updateInfraredRemotes(allDevices);
 
-    let configuredSharingAirConditioners = 0;
-    for (const device of sharingAirConditioners) {
-      const resolvedByProductApi = Boolean(
-        device.infrared_ac_product_api_resolved
-        && device.parent_id
-        && hasUsableInfraredACKeyRange(device)
-        && ['power', 'mode', 'temp'].every(code => device.status.some(item => item.code === code)),
-      );
-      if (resolvedByProductApi) {
-        device.infrared_ac_command_mode = undefined;
-        continue;
-      }
-      if (device.schema.length === 0) {
-        device.schema = sharingSchemas.get(device) ?? [];
-      }
-      device.remote_keys = sharingRemoteKeys.get(device);
-      configureSharingInfraredAC(device);
-      configuredSharingAirConditioners += 1;
-    }
-
-    if (configuredSharingAirConditioners > 0) {
-      this.log.info(
-        'Enabled %d QR-authorized IR air conditioner(s) through Tuya device-sharing commands.',
-        configuredSharingAirConditioners,
-      );
-    }
-
-    let configuredSharingRemotes = 0;
-    for (const device of sharingGenericRemotes) {
-      const initialRemoteKeys = sharingRemoteKeys.get(device);
-      const resolvedByProductApi = Boolean(
-        this.hasProductApiFallback()
-        && device.parent_id
-        && device.remote_keys !== initialRemoteKeys
-        && device.remote_keys?.key_list?.length,
-      );
-      if (resolvedByProductApi) {
-        device.infrared_remote_command_mode = undefined;
-        continue;
-      }
-      if (device.schema.length === 0) {
-        device.schema = sharingSchemas.get(device) ?? [];
-      }
-      device.remote_keys = initialRemoteKeys;
-      configureSharingInfraredRemote(device);
-      configuredSharingRemotes += 1;
-    }
-
-    if (configuredSharingRemotes > 0) {
-      this.log.info(
-        'Enabled %d QR-authorized IR button remote(s) through Tuya device-sharing commands.',
-        configuredSharingRemotes,
-      );
-    }
-
+    // Tuya's account-sharing identity currently rejects the product-specific
+    // /v2.0/infrareds APIs. Do not register a thermostat whose required
+    // parent, mode table, state, and command endpoint are therefore missing:
+    // HomeKit would otherwise display a misleading 0 °C accessory that cannot
+    // send commands. If Tuya grants these endpoints later, fully resolved
+    // remotes will pass through unchanged.
     const unresolved = infraredRemotes.filter(device => {
-      const usesSharingCommands = device.infrared_ac_command_mode === 'device-sharing'
-        || device.infrared_remote_command_mode === 'device-sharing';
-      if ((!device.parent_id && !usesSharingCommands) || !device.remote_keys) {
+      if (!device.parent_id || !device.remote_keys) {
         return true;
       }
       if (device.category !== 'infrared_ac') {
         return false;
       }
-      return !hasUsableInfraredACKeyRange(device)
-        || !['power', 'mode', 'temp'].every(code => device.status.some(item => item.code === code));
+      return !['power', 'mode', 'temp'].every(code => device.status.some(item => item.code === code));
     });
     if (unresolved.length === 0) {
-      this.updateSharingSubscriptions(this.ownerIDs);
       return;
     }
 
@@ -237,293 +101,10 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       }
     }
     this.log.warn(
-      'Skipped %d QR-authorized IR accessory(s) without a supported sharing command schema. '
-      + 'Tuya Developer Cloud fallback is still required for those remotes.',
+      'Tuya QR authorization does not expose IR remote metadata/control; skipped %d unresolved IR accessory(s). '
+      + 'Use Tuya Developer Cloud mode for IR hubs and remotes.',
       unresolved.length,
     );
-    this.updateSharingSubscriptions(this.ownerIDs);
-  }
-
-  async getInfraredACStatus(infraredID: string, remoteID: string) {
-    const device = this.getDevice(remoteID);
-    if (device?.infrared_ac_command_mode !== 'device-sharing') {
-      return super.getInfraredACStatus(infraredID, remoteID);
-    }
-
-    const thermostat = this.findDirectInfraredThermostat(device, infraredID);
-    const connection = thermostat && this.getInfraredThermostatLANConnection(device, thermostat);
-    if (thermostat && connection && this.sharingLanClient.query) {
-      try {
-        const dps = await this.sharingLanClient.query(connection);
-        this.mergeDirectInfraredThermostatStatus(device, thermostat, dps);
-      } catch (error) {
-        this.log.debug('Local QR-authorized IR thermostat status read failed: %s', String(error));
-      }
-    }
-
-    return {
-      success: true as const,
-      result: Object.fromEntries(SHARING_IR_AC_STATUS_CODES.map(code => [
-        code,
-        device.status.find(item => item.code === code)?.value,
-      ])),
-      t: Date.now(),
-      tid: `device-sharing-${remoteID}`,
-    };
-  }
-
-  async sendInfraredACCommands(
-    infraredID: string,
-    remoteID: string,
-    power: number,
-    mode: number,
-    temp: number,
-    wind: number,
-  ) {
-    const device = this.getDevice(remoteID);
-    if (device?.infrared_ac_command_mode !== 'device-sharing') {
-      return super.sendInfraredACCommands(infraredID, remoteID, power, mode, temp, wind);
-    }
-
-    const commands: TuyaDeviceStatus[] = power === 1
-      ? [
-        { code: 'M', value: mode },
-        { code: 'T', value: temp },
-        ...(hasWritableNumericSchema(device, 'F') ? [{ code: 'F', value: wind }] : []),
-        { code: 'PowerOn', value: sharingStringFunctionValue(device, 'PowerOn') },
-      ]
-      : [{ code: 'PowerOff', value: sharingStringFunctionValue(device, 'PowerOff') }];
-    const response = await this.sharingApi.postWithQuery(
-      `/v1.1/m/thing/${remoteID}/commands`,
-      undefined,
-      { commands },
-    );
-    if (response.success || String(response.code) !== '1109') {
-      if (!response.success) {
-        this.log.info('Send QR-authorized IR AC command failed. code = %s, msg = %s', response.code, response.msg);
-      }
-      return response;
-    }
-
-    const directTarget = this.getDirectInfraredThermostatCommands(device, infraredID, power, mode, temp, wind);
-    if (!directTarget) {
-      this.log.info(
-        'Send QR-authorized IR AC command failed because no physical hwktwkq thermostat could be resolved. '
-        + 'code = %s, msg = %s',
-        response.code,
-        response.msg,
-      );
-      return response;
-    }
-
-    this.log.info(
-      'Tuya rejected the virtual IR AC command; retrying through physical IR thermostat %s.',
-      directTarget.thermostat.id,
-    );
-    const directResponse = await this.sharingApi.postWithQuery(
-      `/v1.1/m/thing/${directTarget.thermostat.id}/commands`,
-      undefined,
-      { commands: directTarget.commands },
-    );
-    if (directResponse.success) {
-      return directResponse;
-    }
-
-    this.log.info(
-      'Tuya rejected the physical IR thermostat cloud command; trying the local network. code = %s, msg = %s',
-      directResponse.code,
-      directResponse.msg,
-    );
-    const lanResponse = await this.sendDirectInfraredThermostatLAN(directTarget);
-    if (lanResponse) {
-      return lanResponse;
-    }
-    this.log.info(
-      'Send QR-authorized IR thermostat command failed. code = %s, msg = %s',
-      directResponse.code,
-      directResponse.msg,
-    );
-    return directResponse;
-  }
-
-  private async sendDirectInfraredThermostatLAN(
-    target: { remote: TuyaDevice; thermostat: TuyaDevice; commands: TuyaDeviceStatus[] },
-  ) {
-    const localKey = this.sharingLocalKeys.get(target.thermostat.id);
-    if (!localKey) {
-      this.log.info('Local IR thermostat retry unavailable: QR inventory did not provide a valid local key.');
-      return undefined;
-    }
-    const connection = this.getInfraredThermostatLANConnection(target.remote, target.thermostat);
-    if (!connection) {
-      this.log.info('Local IR thermostat retry unavailable: QR inventory did not provide a private LAN address.');
-      return undefined;
-    }
-
-    const commandDPs = new Map(target.commands.map(command => [command.code, command.value]));
-    const dps: Record<string, unknown> = {};
-    for (const [dpID, fallback] of [
-      [1, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.power],
-      [3, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.temperature],
-      [4, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.mode],
-      [5, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.fan],
-    ] as const) {
-      const value = commandDPs.get(this.directInfraredThermostatCode(target.thermostat, dpID, fallback));
-      if (value !== undefined) {
-        dps[String(dpID)] = value;
-      }
-    }
-
-    this.log.info('Sending QR-authorized IR thermostat command over the local network.');
-    try {
-      await this.sharingLanClient.send({
-        ...connection,
-      }, dps);
-      return {
-        success: true as const,
-        result: true,
-        t: Date.now(),
-        tid: `device-sharing-lan-${target.thermostat.id}`,
-      };
-    } catch (error) {
-      this.log.warn('Local QR-authorized IR thermostat command failed: %s', String(error));
-      return undefined;
-    }
-  }
-
-  private getInfraredThermostatLANConnection(remote: TuyaDevice, thermostat: TuyaDevice) {
-    const localKey = this.sharingLocalKeys.get(thermostat.id);
-    const configuredIP = remote.infrared_ac_local_ip?.trim()
-      || thermostat.infrared_ac_local_ip?.trim();
-    const ip = configuredIP || thermostat.ip.trim();
-    if (!localKey || !isPrivateIPv4(ip)) {
-      return undefined;
-    }
-    return { id: thermostat.id, ip, localKey };
-  }
-
-  private mergeDirectInfraredThermostatStatus(
-    remote: TuyaDevice,
-    thermostat: TuyaDevice,
-    dps: Record<string, unknown>,
-  ): TuyaDeviceStatus[] {
-    const updates: TuyaDeviceStatus[] = [];
-    const updateRemote = (code: string, value: string | number | boolean | undefined) => {
-      if (value === undefined) {
-        return;
-      }
-      updates.push({ code, value });
-      const status = remote.status.find(item => item.code === code);
-      if (status) {
-        status.value = value;
-      } else {
-        remote.status.push({ code, value });
-      }
-    };
-    if (dps['1'] !== undefined) {
-      updateRemote('power', directThermostatPower(dps['1']));
-    }
-    const mode = DIRECT_IR_THERMOSTAT_MODES.indexOf(String(dps['4']) as typeof DIRECT_IR_THERMOSTAT_MODES[number]);
-    updateRemote('mode', mode >= 0 ? mode : undefined);
-    const targetTemperature = Number(dps['3']);
-    updateRemote('temp', Number.isFinite(targetTemperature) ? targetTemperature : undefined);
-    const fan = DIRECT_IR_THERMOSTAT_FANS.indexOf(String(dps['5']) as typeof DIRECT_IR_THERMOSTAT_FANS[number]);
-    updateRemote('wind', fan >= 0 ? fan : undefined);
-    mergeDeviceStatus(thermostat, this.directInfraredThermostatStatus(thermostat, dps));
-    return updates;
-  }
-
-  private directInfraredThermostatCode(thermostat: TuyaDevice, dpID: number, fallback: string) {
-    // The Moes S16Pro QR status strategy can expose generic CMDC names, but
-    // Tuya's command endpoint requires the product's original function names.
-    return DIRECT_IR_THERMOSTAT_PRODUCTS.has(thermostat.product_id)
-      ? fallback
-      : thermostat.sharing_dp_codes?.[dpID] || fallback;
-  }
-
-  private getDirectInfraredThermostatCommands(
-    remote: TuyaDevice,
-    infraredID: string,
-    power: number,
-    mode: number,
-    temp: number,
-    wind: number,
-  ): { remote: TuyaDevice; thermostat: TuyaDevice; commands: TuyaDeviceStatus[] } | undefined {
-    const thermostat = this.findDirectInfraredThermostat(remote, infraredID);
-    if (!thermostat) {
-      return undefined;
-    }
-
-    const code = (dpID: number, fallback: string) => this.directInfraredThermostatCode(thermostat, dpID, fallback);
-    const powerCode = code(1, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.power);
-    if (power !== 1) {
-      return { remote, thermostat, commands: [{ code: powerCode, value: false }] };
-    }
-
-    const temperatureCode = code(3, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.temperature);
-    const modeCode = code(4, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.mode);
-    const modeValue = DIRECT_IR_THERMOSTAT_MODES[mode];
-    if (!temperatureCode || !modeCode || !modeValue) {
-      return undefined;
-    }
-    const fanCode = code(5, DIRECT_IR_THERMOSTAT_DEFAULT_CODES.fan);
-    const fanValue = DIRECT_IR_THERMOSTAT_FANS[wind];
-
-    return {
-      remote,
-      thermostat,
-      commands: [
-        { code: modeCode, value: modeValue },
-        { code: temperatureCode, value: temp },
-        ...(fanCode && fanValue ? [{ code: fanCode, value: fanValue }] : []),
-        { code: powerCode, value: true },
-      ],
-    };
-  }
-
-  private findDirectInfraredThermostat(remote: TuyaDevice, infraredID?: string) {
-    const linkedIDs = [infraredID, remote.parent_id].filter((id): id is string => Boolean(id));
-    for (const id of linkedIDs) {
-      const linkedDevice = this.getDevice(id);
-      if (linkedDevice?.category === DIRECT_IR_THERMOSTAT_CATEGORY) {
-        return linkedDevice;
-      }
-    }
-
-    const candidates = this.devices.filter(device => device.category === DIRECT_IR_THERMOSTAT_CATEGORY
-      && device.owner_id === remote.owner_id);
-    const preferredCandidates = candidates.filter(device => DIRECT_IR_THERMOSTAT_PRODUCTS.has(device.product_id)
-      || [1, 3, 4].every(dpID => Boolean(device.sharing_dp_codes?.[dpID])));
-    if (preferredCandidates.length === 1) {
-      return preferredCandidates[0];
-    }
-    return candidates.length === 1 ? candidates[0] : undefined;
-  }
-
-  async sendInfraredCommands(
-    infraredID: string,
-    remoteID: string,
-    categoryID: number,
-    remoteIndex: number,
-    key: string,
-    keyID: number,
-  ) {
-    const device = this.getDevice(remoteID);
-    if (device?.infrared_remote_command_mode !== 'device-sharing') {
-      return super.sendInfraredCommands(infraredID, remoteID, categoryID, remoteIndex, key, keyID);
-    }
-
-    const schema = device.schema.find(item => item.code === key);
-    const value = staticSharingInfraredFunctionValue(schema) ?? key;
-    const response = await this.sharingApi.postWithQuery(
-      `/v1.1/m/thing/${remoteID}/commands`,
-      undefined,
-      { commands: [{ code: key, value }] },
-    );
-    if (!response.success) {
-      this.log.info('Send QR-authorized IR command failed. code = %s, msg = %s', response.code, response.msg);
-    }
-    return response;
   }
 
   async updateDevice(deviceID: string): Promise<TuyaDevice | null> {
@@ -537,20 +118,13 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       this.devices.splice(this.devices.indexOf(old), 1);
     }
     this.devices.push(device);
-    if (device.category.startsWith('infrared_')) {
-      await this.updateInfraredRemotes(this.devices);
-    }
-    this.updateSharingSubscriptions(this.ownerIDs);
-    return this.getDevice(deviceID) ?? null;
+    return device;
   }
 
   async getSceneList(homeID: string) {
     const response = await this.api.get('/v1.0/m/scene/ha/home/scenes', { homeId: homeID });
     if (!response.success) {
-      throw new TuyaSharingRequestError(
-        `Tuya account scene inventory failed (${response.code}): ${response.msg}`,
-        true,
-      );
+      return [];
     }
     return (response.result as RawDevice[])
       .filter(scene => scene.enabled !== false)
@@ -577,7 +151,7 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
     });
   }
 
-  protected async sendCloudCommands(deviceID: string, commands: TuyaDeviceStatus[]) {
+  async sendCommands(deviceID: string, commands: TuyaDeviceStatus[]) {
     const response = await this.sharingApi.postWithQuery(
       `/v1.1/m/thing/${deviceID}/commands`,
       undefined,
@@ -641,83 +215,10 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       }
     }
 
-    if (device.category === DIRECT_IR_THERMOSTAT_CATEGORY) {
-      const dps = directInfraredThermostatDPs(message.status);
-      const physicalStatus = this.directInfraredThermostatStatus(device, dps);
-      mergeDeviceStatus(device, physicalStatus);
-      const physicalUpdates = mergeStatusUpdates(normalized, physicalStatus);
-      const linkedRemotes = this.devices.filter(candidate => (
-        candidate.category === 'infrared_ac'
-        && candidate.infrared_ac_command_mode === 'device-sharing'
-        && this.findDirectInfraredThermostat(candidate) === device
-      ));
-      for (const remote of linkedRemotes) {
-        const remoteUpdates = this.mergeDirectInfraredThermostatStatus(remote, device, dps);
-        if (remoteUpdates.length > 0) {
-          await super.onMQTTMessage(topic, protocol, {
-            ...message,
-            devId: remote.id,
-            status: remoteUpdates,
-          });
-        }
-      }
-      return super.onMQTTMessage(topic, protocol, { ...message, status: physicalUpdates });
-    }
-
-    if (device.category === 'infrared_ac' && device.infrared_ac_command_mode === 'device-sharing') {
-      const infraredStatus = sharingInfraredACStatus(message.status);
-      return super.onMQTTMessage(topic, protocol, {
-        ...message,
-        status: mergeStatusUpdates(normalized, infraredStatus),
-      });
-    }
-
     return super.onMQTTMessage(topic, protocol, { ...message, status: normalized });
   }
 
-  private directInfraredThermostatStatus(
-    thermostat: TuyaDevice,
-    dps: Record<string, unknown>,
-  ): TuyaDeviceStatus[] {
-    const result: TuyaDeviceStatus[] = [];
-    if (dps['1'] !== undefined) {
-      result.push({ code: DIRECT_IR_THERMOSTAT_DEFAULT_CODES.power, value: directThermostatPower(dps['1']) === 1 });
-    }
-    const currentTemperature = Number(dps['2']);
-    if (Number.isFinite(currentTemperature)) {
-      const hasScaledSchema = thermostat.schema.some(item => (
-        item.code === 'temp_current'
-        && typeof item.property === 'object'
-        && item.property !== null
-        && 'scale' in item.property
-        && Number(item.property.scale) === 1
-      ));
-      result.push({ code: 'temp_current', value: hasScaledSchema ? currentTemperature : currentTemperature / 10 });
-    }
-    const targetTemperature = Number(dps['3']);
-    if (Number.isFinite(targetTemperature)) {
-      result.push({ code: DIRECT_IR_THERMOSTAT_DEFAULT_CODES.temperature, value: targetTemperature });
-    }
-    if (DIRECT_IR_THERMOSTAT_MODES.includes(String(dps['4']) as typeof DIRECT_IR_THERMOSTAT_MODES[number])) {
-      result.push({ code: DIRECT_IR_THERMOSTAT_DEFAULT_CODES.mode, value: String(dps['4']) });
-    }
-    if (DIRECT_IR_THERMOSTAT_FANS.includes(String(dps['5']) as typeof DIRECT_IR_THERMOSTAT_FANS[number])) {
-      result.push({ code: DIRECT_IR_THERMOSTAT_DEFAULT_CODES.fan, value: String(dps['5']) });
-    }
-    const humidity = Number(dps['12']);
-    if (Number.isFinite(humidity)) {
-      result.push({ code: 'humidity_current', value: humidity });
-    }
-    return result;
-  }
-
   private async normalizeDevice(raw: RawDevice, homeId: string): Promise<TuyaDevice> {
-    const rawLocalKey = typeof raw.local_key === 'string' ? raw.local_key : '';
-    if (Buffer.byteLength(rawLocalKey, 'utf8') === 16) {
-      this.sharingLocalKeys.set(String(raw.id), rawLocalKey);
-    } else {
-      this.sharingLocalKeys.delete(String(raw.id));
-    }
     const [specResponse, strategyResponse, customTypeResponse, reportTypesResponse] = await Promise.all([
       this.api.get(`/v1.1/m/life/${raw.id}/specifications`),
       this.api.get(`/v1.0/m/life/devices/${raw.id}/status`),
@@ -763,8 +264,6 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
     const status = Array.isArray(raw.status)
       ? raw.status.filter(item => item?.code !== undefined).map(item => ({ code: String(item.code), value: item.value }))
       : Object.entries(raw.status ?? {}).map(([code, value]) => ({ code, value }));
-    const embeddedSpecification = embeddedDeviceSpecification(raw);
-    const mappedInfraredSpecification = sharingInfraredMappingSpecification(raw);
     const device = new TuyaDevice({
       id: String(raw.id),
       uuid: String(raw.uuid ?? raw.id),
@@ -776,19 +275,7 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       model: raw.model ? String(raw.model) : undefined,
       icon: String(raw.icon ?? ''),
       category: String(raw.category ?? ''),
-      schema: mergeSchema(
-        [
-          ...(specification.functions ?? []),
-          ...embeddedSpecification.functions,
-          ...mappedInfraredSpecification.functions,
-        ],
-        [
-          ...(specification.status ?? []),
-          ...embeddedSpecification.status,
-          ...mappedInfraredSpecification.status,
-        ],
-        reportTypes,
-      ),
+      schema: mergeSchema(specification.functions ?? [], specification.status ?? [], reportTypes),
       status,
       ip: String(raw.ip ?? ''),
       lat: String(raw.lat ?? ''),
@@ -798,441 +285,14 @@ export default class TuyaSharingDeviceManager extends TuyaDeviceManager {
       active_time: Number(raw.active_time ?? 0),
       update_time: Number(raw.update_time ?? 0),
       sub: raw.sub === true,
-      parent_id: raw.parent_id || raw.parent ? String(raw.parent_id ?? raw.parent) : undefined,
+      parent_id: raw.parent_id ? String(raw.parent_id) : undefined,
       node_id: raw.node_id ? String(raw.node_id) : undefined,
       support_local: supportLocal,
       local_strategy: supportLocal ? localStrategy : {},
-      sharing_dp_codes: Object.fromEntries(
-        Object.entries(localStrategy).map(([dpID, strategy]) => [dpID, strategy.status_code]),
-      ),
     });
-    // Tuya marks virtual IR remotes as not set up even though their normal
-    // sharing specification can expose a complete writable command surface.
-    // Include compatible remotes in MQTT subscriptions so owner/device reports
-    // can refresh the optimistic one-way IR state when Tuya publishes them.
-    device.set_up = raw.set_up !== false || isSharingInfraredAC(device) || isSharingInfraredRemote(device);
-    if (isSharingInfraredAC(device)) {
-      configureSharingInfraredAC(device);
-    } else if (isSharingInfraredRemote(device)) {
-      configureSharingInfraredRemote(device);
-    }
+    device.set_up = raw.set_up !== false;
     return device;
   }
-
-  private updateSharingSubscriptions(homeIDs: string[]) {
-    this.sharingMq.updateSubscriptions(
-      homeIDs,
-      this.devices.filter(device => device.id && device.set_up !== false).map(device => ({
-        id: device.id,
-        supportLocal: device.support_local === true,
-      })),
-    );
-  }
-}
-
-function isPrivateIPv4(value: string) {
-  const octets = value.split('.').map(Number);
-  if (octets.length !== 4 || octets.some(octet => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
-    return false;
-  }
-  return octets[0] === 10
-    || (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)
-    || (octets[0] === 192 && octets[1] === 168);
-}
-
-function embeddedDeviceSpecification(raw: RawDevice): {
-  functions: RawSpecification[];
-  status: RawSpecification[];
-} {
-  return {
-    functions: normalizeEmbeddedSpecifications(raw.function),
-    status: normalizeEmbeddedSpecifications(raw.status_range),
-  };
-}
-
-function normalizeEmbeddedSpecifications(value: unknown): RawSpecification[] {
-  return specificationEntries(value).flatMap(([mappingCode, entry]) => {
-    const code = typeof entry.code === 'string' ? entry.code : mappingCode;
-    const type = normalizeMappingSchemaType(entry.type);
-    if (!code || !type) {
-      return [];
-    }
-    return [{ code, type, values: serializeMappingValues(entry.values ?? entry.value, code, type) }];
-  });
-}
-
-function sharingInfraredMappingSpecification(raw: RawDevice): {
-  functions: RawSpecification[];
-  status: RawSpecification[];
-} {
-  const result = { functions: [] as RawSpecification[], status: [] as RawSpecification[] };
-  const isAirConditioner = raw.category === 'infrared_ac';
-  const isButtonRemote = SHARING_IR_REMOTE_CATEGORIES.has(raw.category);
-  if (!isAirConditioner && !isButtonRemote) {
-    return result;
-  }
-
-  const functionCodes = new Set<string>([
-    ...SHARING_IR_AC_REQUIRED_FUNCTIONS,
-    ...SHARING_IR_AC_OPTIONAL_FUNCTIONS,
-  ]);
-  const statusCodes = new Set<string>(SHARING_IR_AC_STATUS_CODES);
-  for (const [mappingCode, entry] of specificationEntries(raw.mapping)) {
-    const code = typeof entry.code === 'string' ? entry.code : mappingCode;
-    if (isAirConditioner && !functionCodes.has(code) && !statusCodes.has(code)) {
-      continue;
-    }
-    const type = normalizeMappingSchemaType(entry.type);
-    if (!type) {
-      continue;
-    }
-    const rawValues = entry.values ?? entry.value;
-    const values = serializeMappingValues(rawValues, code, type);
-    const specification = { code, type, values };
-    if (isAirConditioner && functionCodes.has(code)) {
-      result.functions.push(specification);
-    }
-    if (isAirConditioner && statusCodes.has(code)) {
-      result.status.push(specification);
-    }
-    if (isButtonRemote && isStaticInfraredMappingFunction(type, rawValues)) {
-      result.functions.push(specification);
-    }
-  }
-  return result;
-}
-
-function specificationEntries(value: unknown): Array<[string, RawDevice]> {
-  let source = value;
-  if (typeof source === 'string' && source.length <= 100_000) {
-    try {
-      source = JSON.parse(source);
-    } catch {
-      return [];
-    }
-  }
-  if (Array.isArray(source)) {
-    return source.slice(0, SHARING_IR_MAX_MAPPING_ENTRIES).flatMap((entry, index) => (
-      entry && typeof entry === 'object' && !Array.isArray(entry)
-        ? [[typeof (entry as RawDevice).code === 'string' ? (entry as RawDevice).code : String(index), entry as RawDevice]]
-        : []
-    ));
-  }
-  if (!source || typeof source !== 'object') {
-    return [];
-  }
-  return Object.entries(source as Record<string, unknown>)
-    .slice(0, SHARING_IR_MAX_MAPPING_ENTRIES)
-    .flatMap(([code, entry]) => (
-      entry && typeof entry === 'object' && !Array.isArray(entry)
-        ? [[code, entry as RawDevice]]
-        : []
-    ));
-}
-
-function serializeMappingValues(value: unknown, code: string, type: string): string {
-  if (typeof value === 'string') {
-    return value;
-  }
-  const normalizedValue = value ?? (type === TuyaDeviceSchemaType.String ? code : {});
-  return JSON.stringify(normalizedValue);
-}
-
-function isStaticInfraredMappingFunction(type: string, value: unknown): boolean {
-  return type === TuyaDeviceSchemaType.String
-    && (value === undefined || ['string', 'number', 'boolean'].includes(typeof value));
-}
-
-function normalizeMappingSchemaType(value: unknown): string | undefined {
-  switch (String(value ?? '').toLowerCase()) {
-    case 'bool':
-    case 'boolean':
-      return TuyaDeviceSchemaType.Boolean;
-    case 'value':
-    case 'integer':
-    case 'number':
-      return TuyaDeviceSchemaType.Integer;
-    case 'enum':
-      return TuyaDeviceSchemaType.Enum;
-    case 'string':
-      return TuyaDeviceSchemaType.String;
-    case 'json':
-      return TuyaDeviceSchemaType.Json;
-    case 'raw':
-      return TuyaDeviceSchemaType.Raw;
-    default:
-      return undefined;
-  }
-}
-
-function isSharingInfraredAC(device: TuyaDevice): boolean {
-  if (device.category !== 'infrared_ac') {
-    return false;
-  }
-  return SHARING_IR_AC_REQUIRED_FUNCTIONS.every(code => {
-    const schema = device.schema.find(item => item.code === code);
-    if (!schema || !isWritableSchema(schema.mode)) {
-      return false;
-    }
-    if (code === 'PowerOn' || code === 'PowerOff') {
-      return String(schema.type).toLowerCase() === 'string' && schema.property === code;
-    }
-    if (code === 'M') {
-      return hasNumericProperty(schema)
-        && numericPropertyValues(schema)!.some(value => [0, 1, 2].includes(value));
-    }
-    return hasNumericProperty(schema);
-  });
-}
-
-function isSharingInfraredRemote(device: TuyaDevice): boolean {
-  return SHARING_IR_REMOTE_CATEGORIES.has(device.category)
-    && device.schema.some(schema => (
-      isWritableSchema(schema.mode)
-      && staticSharingInfraredFunctionValue(schema) !== undefined
-    ));
-}
-
-function configureSharingInfraredAC(device: TuyaDevice) {
-  const modes = numericSchemaValues(device, ['M', 'mode'], [0, 1, 2]);
-  const temperatures = numericSchemaValues(device, ['T', 'temp'], [SHARING_IR_AC_DEFAULT_TEMPERATURE]);
-  const fans = numericSchemaValues(device, ['F', 'wind'], [0]);
-  const defaultTemperature = temperatures.includes(SHARING_IR_AC_DEFAULT_TEMPERATURE)
-    ? SHARING_IR_AC_DEFAULT_TEMPERATURE
-    : temperatures[0];
-  const defaultMode = [0, 1, 2].find(mode => modes.includes(mode))!;
-
-  ensureStatus(device, 'power', false);
-  ensureStatus(device, 'mode', defaultMode);
-  ensureStatus(device, 'temp', defaultTemperature);
-  ensureStatus(device, 'wind', fans.includes(0) ? 0 : fans[0]);
-
-  if (!hasUsableInfraredACKeyRange(device)) {
-    device.remote_keys = {
-      category_id: 5,
-      org_category_id: 5,
-      brand_id: 0,
-      remote_index: 0,
-      single_air: true,
-      duplicate_power: false,
-      key_list: [],
-      key_range: modes.map(mode => ({
-        mode,
-        mode_name: String(mode),
-        temp_list: temperatures.map(temp => ({
-          temp,
-          temp_name: String(temp),
-          fan_list: fans.map(fan => ({ fan, fan_name: String(fan) })),
-        })),
-      })),
-    };
-  }
-  device.infrared_ac_command_mode = 'device-sharing';
-  device.infrared_ac_product_api_resolved = undefined;
-}
-
-function configureSharingInfraredRemote(device: TuyaDevice) {
-  const functions = device.schema.filter(schema => (
-    isWritableSchema(schema.mode)
-    && staticSharingInfraredFunctionValue(schema) !== undefined
-  ));
-  device.remote_keys = {
-    category_id: 999,
-    org_category_id: 999,
-    brand_id: 0,
-    remote_index: 0,
-    single_air: false,
-    duplicate_power: false,
-    key_list: functions.map((schema, index) => ({
-      key: schema.code,
-      key_id: index,
-      key_name: schema.code,
-      standard_key: true,
-    })),
-    key_range: [],
-  };
-  device.infrared_remote_command_mode = 'device-sharing';
-}
-
-function hasUsableInfraredACKeyRange(device: TuyaDevice): boolean {
-  const keyRange = device.remote_keys?.key_range;
-  if (!Array.isArray(keyRange) || keyRange.length === 0) {
-    return false;
-  }
-  if (!keyRange.every(item => item && Number.isFinite(item.mode))) {
-    return false;
-  }
-
-  const supportedRanges = keyRange.filter(item => [0, 1, 2].includes(item.mode));
-  return supportedRanges.length > 0 && supportedRanges.every(item => (
-    Array.isArray(item.temp_list)
-    && item.temp_list.length > 0
-    && item.temp_list.every(temp => (
-      Number.isFinite(temp?.temp)
-      && Array.isArray(temp.fan_list)
-      && temp.fan_list.length > 0
-      && temp.fan_list.every(fan => Number.isFinite(fan?.fan))
-    ))
-  ));
-}
-
-function ensureStatus(device: TuyaDevice, code: string, value: TuyaDeviceStatus['value']) {
-  if (!device.status.some(item => item.code === code)) {
-    device.status.push({ code, value });
-    device.status.sort((left, right) => left.code.localeCompare(right.code));
-  }
-}
-
-function mergeDeviceStatus(device: TuyaDevice, updates: TuyaDeviceStatus[]) {
-  for (const update of updates) {
-    const current = device.status.find(item => item.code === update.code);
-    if (current) {
-      current.value = update.value;
-    } else {
-      device.status.push({ ...update });
-    }
-  }
-  device.status.sort((left, right) => left.code.localeCompare(right.code));
-}
-
-function mergeStatusUpdates(...groups: TuyaDeviceStatus[][]): TuyaDeviceStatus[] {
-  const updates = new Map<string, TuyaDeviceStatus>();
-  for (const group of groups) {
-    for (const update of group) {
-      updates.set(update.code, update);
-    }
-  }
-  return [...updates.values()];
-}
-
-function directThermostatPower(value: unknown): number {
-  return value === true || Number(value) === 1 ? 1 : 0;
-}
-
-function directInfraredThermostatDPs(status: RawDevice[]): Record<string, unknown> {
-  const dps: Record<string, unknown> = {};
-  for (const item of status) {
-    if (!item || typeof item !== 'object' || !('value' in item)) {
-      continue;
-    }
-    const numericDP = Number(item.dpId);
-    const dpID = Number.isInteger(numericDP)
-      ? numericDP
-      : DIRECT_IR_THERMOSTAT_DP_BY_CODE[String(item.code ?? '')];
-    if (dpID !== undefined) {
-      dps[String(dpID)] = item.value;
-    }
-  }
-  return dps;
-}
-
-function sharingInfraredACStatus(status: RawDevice[]): TuyaDeviceStatus[] {
-  const updates = new Map<string, TuyaDeviceStatus>();
-  const codeByDP: Record<number, string> = {
-    101: 'power',
-    102: 'mode',
-    103: 'temp',
-    104: 'wind',
-  };
-  const codeAliases: Record<string, string> = {
-    power: 'power',
-    switch_power: 'power',
-    mode: 'mode',
-    temp: 'temp',
-    temperature: 'temp',
-    wind: 'wind',
-    fan: 'wind',
-  };
-
-  for (const item of status) {
-    if (!item || typeof item !== 'object' || !('value' in item)) {
-      continue;
-    }
-    const dpID = Number(item.dpId);
-    const code = codeByDP[dpID] ?? codeAliases[String(item.code ?? '')];
-    if (!code) {
-      continue;
-    }
-    if (code === 'power') {
-      updates.set(code, { code, value: directThermostatPower(item.value) });
-      continue;
-    }
-    const value = Number(item.value);
-    if (!Number.isFinite(value)) {
-      continue;
-    }
-    if ((code === 'mode' && value >= 0 && value <= 4)
-      || (code === 'temp' && value >= 16 && value <= 30)
-      || (code === 'wind' && value >= 0 && value <= 3)) {
-      updates.set(code, { code, value });
-    }
-  }
-  return [...updates.values()];
-}
-
-function numericSchemaValues(device: TuyaDevice, codes: string[], fallback: number[]): number[] {
-  for (const code of codes) {
-    const schema = device.schema.find(item => item.code === code);
-    const values = numericPropertyValues(schema);
-    if (values) {
-      return values;
-    }
-  }
-  return fallback;
-}
-
-function hasWritableNumericSchema(device: TuyaDevice, code: string): boolean {
-  const schema = device.schema.find(item => item.code === code);
-  return Boolean(schema && isWritableSchema(schema.mode) && hasNumericProperty(schema));
-}
-
-function sharingStringFunctionValue(device: TuyaDevice, code: 'PowerOn' | 'PowerOff'): string {
-  const property = device.schema.find(item => item.code === code)?.property;
-  return typeof property === 'string' ? property : code;
-}
-
-function staticSharingInfraredFunctionValue(schema: TuyaDeviceSchema | undefined): TuyaDeviceStatus['value'] | undefined {
-  if (!schema || String(schema.type).toLowerCase() !== 'string') {
-    return undefined;
-  }
-  if (['string', 'number', 'boolean'].includes(typeof schema.property)) {
-    return schema.property as string | number | boolean;
-  }
-  return undefined;
-}
-
-function isWritableSchema(mode: TuyaDeviceSchemaMode): boolean {
-  return mode === TuyaDeviceSchemaMode.WRITE_ONLY || mode === TuyaDeviceSchemaMode.READ_WRITE;
-}
-
-function hasNumericProperty(schema: TuyaDeviceSchema): boolean {
-  return numericPropertyValues(schema) !== undefined;
-}
-
-function numericPropertyValues(schema: TuyaDeviceSchema | undefined): number[] | undefined {
-  if (!schema || typeof schema.property !== 'object' || schema.property === null) {
-    return undefined;
-  }
-  const property = schema.property as Record<string, unknown>;
-  // The observed IR command schema is externally labelled Enum, but its
-  // descriptor explicitly declares scale-0 Integer values. Do not generalize
-  // that wire format to ordinary string enums or scaled datapoints.
-  if (String(schema.type).toLowerCase() !== 'enum'
-    || String(property.type).toLowerCase() !== 'integer'
-    || Number(property.scale) !== 0) {
-    return undefined;
-  }
-  const min = Number(property.min);
-  const max = Number(property.max);
-  const step = Number(property.step);
-  if (!Number.isInteger(min) || !Number.isInteger(max) || !Number.isInteger(step) || step <= 0 || max < min) {
-    return undefined;
-  }
-  const rangeSize = Math.floor((max - min) / step) + 1;
-  if (rangeSize > SHARING_IR_AC_MAX_RANGE_SIZE) {
-    return undefined;
-  }
-  return Array.from({ length: rangeSize }, (_, index) => min + index * step);
 }
 
 function mergeSchema(

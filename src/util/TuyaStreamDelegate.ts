@@ -9,7 +9,6 @@ import {
   CameraRecordingOptions,
   CameraStreamingDelegate,
   CameraStreamingOptions,
-  CharacteristicEventTypes,
   EventTriggerOption,
   HAP,
   H264Level,
@@ -108,8 +107,6 @@ export class TuyaStreamingDelegate implements CameraStreamingDelegate, FfmpegStr
   private readonly camera: CameraAccessory;
   private readonly hap: HAP;
   private log: PrefixLogger;
-  private recordingDelegate?: TuyaRecordingDelegate;
-  private recordingAudioListenerConfigured = false;
 
   private constructor(camera: CameraAccessory) {
     this.camera = camera;
@@ -119,16 +116,14 @@ export class TuyaStreamingDelegate implements CameraStreamingDelegate, FfmpegStr
 
   public static async create(camera: CameraAccessory): Promise<TuyaStreamingDelegate> {
     const delegate = new TuyaStreamingDelegate(camera);
-    const recordingTriggerSupported = camera.hasMotionRecordingTrigger();
-    const [streamingOptions, recordingVideoSupported, recordingAudioSupported] = await Promise.all([
-      TuyaStreamingDelegate.createStreamingOptions(delegate),
-      recordingTriggerSupported ? isEncoderAvailable(defaultFfmpegPath, 'libx264') : Promise.resolve(false),
-      recordingTriggerSupported ? isEncoderAvailable(defaultFfmpegPath, 'aac') : Promise.resolve(false),
-    ]);
+    // this.recordingDelegate = new TuyaRecordingDelegate();
+
+    const streamingOptions = await TuyaStreamingDelegate.createStreamingOptions(delegate);
 
     const recordingOptions: CameraRecordingOptions = {
       overrideEventTriggerOptions: [
         EventTriggerOption.MOTION,
+        EventTriggerOption.DOORBELL,
       ],
       prebufferLength: 4 * 1000, // prebufferLength always remains 4s ?
       mediaContainerConfiguration: [
@@ -166,66 +161,15 @@ export class TuyaStreamingDelegate implements CameraStreamingDelegate, FfmpegStr
     const options: CameraControllerOptions = {
       delegate: delegate,
       streamingOptions: streamingOptions,
+      // recording: {
+      // options: recordingOptions,
+      // delegate: this.recordingDelegate
+      // }
     };
-
-    if (recordingVideoSupported && recordingAudioSupported) {
-      const recordingDelegate = new TuyaRecordingDelegate({
-        getInputUrl: async () => {
-          if (!camera.device.online) {
-            throw new Error('Device is currently offline.');
-          }
-          return camera.deviceManager.retrieveDeviceRTSP(camera.device);
-        },
-        isAudioActive: () => {
-          const recordingManagement = delegate.controller.recordingManagement;
-          if (!recordingManagement) {
-            return false;
-          }
-          return Boolean(recordingManagement.recordingManagementService
-            .getCharacteristic(camera.platform.api.hap.Characteristic.RecordingAudioActive).value);
-        },
-        log: delegate.log,
-      });
-      delegate.recordingDelegate = recordingDelegate;
-
-      options.recording = {
-        options: recordingOptions,
-        delegate: recordingDelegate,
-      };
-      options.sensors = {
-        motion: camera.getMotionService(),
-      };
-    } else if (!recordingTriggerSupported) {
-      delegate.log.warn('No Tuya motion-event datapoint is available. HomeKit Secure Video recording will not be enabled.');
-    } else {
-      delegate.log.warn('FFmpeg libx264 or AAC encoder not available. HomeKit Secure Video recording will not be enabled.');
-    }
 
     delegate.controller = new camera.platform.api.hap.CameraController(options);
 
     return delegate;
-  }
-
-  public configureRecordingAudioActive(): void {
-    if (this.recordingAudioListenerConfigured || !this.recordingDelegate) {
-      return;
-    }
-
-    const recordingManagement = this.controller.recordingManagement;
-    if (!recordingManagement) {
-      return;
-    }
-
-    const characteristic = recordingManagement.recordingManagementService
-      .getCharacteristic(this.hap.Characteristic.RecordingAudioActive);
-    const updateAudioActive = (value: unknown) => this.recordingDelegate?.updateRecordingAudioActive(Boolean(value));
-    updateAudioActive(characteristic.value);
-    characteristic.on(CharacteristicEventTypes.CHANGE, change => updateAudioActive(change.newValue));
-    this.recordingAudioListenerConfigured = true;
-  }
-
-  public markRecordingEvent(): void {
-    this.recordingDelegate?.markRecordingEvent();
   }
 
   private static async createStreamingOptions(delegate: TuyaStreamingDelegate): Promise<CameraStreamingOptions> {
@@ -605,13 +549,15 @@ export class TuyaStreamingDelegate implements CameraStreamingDelegate, FfmpegStr
 
     return new Promise((resolve, reject) => {
 
-      this.log.debug(`Running Snapshot command with ${defaultFfmpegPath}.`);
+      this.log.debug(`Running Snapshot command: ${defaultFfmpegPath} ${ffmpegArgs.map(value => JSON.stringify(value)).join(' ')}`);
 
       const ffmpeg = spawn(
         defaultFfmpegPath,
         ffmpegArgs.map(x => x.toString()),
         { env: process.env },
       );
+
+      let errors: string[] = [];
 
       let snapshotBuffer = Buffer.alloc(0);
 
@@ -625,7 +571,8 @@ export class TuyaStreamingDelegate implements CameraStreamingDelegate, FfmpegStr
       });
 
       ffmpeg.stderr.on('data', (data) => {
-        void data; // Drain diagnostics without retaining credential-bearing input URLs.
+        errors = errors.slice(-5);
+        errors.push(data.toString().replace(/(\r\n|\n|\r)/gm, ' '));
       });
 
       ffmpeg.on('close', () => {
@@ -633,6 +580,10 @@ export class TuyaStreamingDelegate implements CameraStreamingDelegate, FfmpegStr
           resolve(snapshotBuffer);
         } else {
           this.log.error('Failed to fetch snapshot. Showing "offline" image instead.');
+
+          if (errors.length > 0) {
+            this.log.error(errors.join(' - '));
+          }
 
           reject('Unable to fetch snapshot.');
         }

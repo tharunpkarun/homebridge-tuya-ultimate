@@ -13,8 +13,6 @@ import TuyaDevice, {
 } from './TuyaDevice';
 import { RTSPCameraConfig } from '../config';
 import { uuidFromSeed } from '../util/util';
-import TuyaLocalCommandRouter from '../local/TuyaLocalCommandRouter';
-import RuntimeDiagnosticsStore, { CommandAttemptDiagnostic } from '../diagnostics/RuntimeDiagnosticsStore';
 
 enum Events {
   DEVICE_ADD = 'DEVICE_ADD',
@@ -28,42 +26,6 @@ enum TuyaMQTTProtocol {
   DEVICE_INFO_UPDATE = 20,
 }
 
-const IR_AC_STATUS_CODES = ['power', 'mode', 'temp', 'wind'] as const;
-const IR_AC_REQUIRED_STATUS_CODES = ['power', 'mode', 'temp'] as const;
-const IR_AC_DEFAULT_MAX_AGE_MS = 2_000;
-const IR_AC_PARENT_MAX_AGE_MS = 15_000;
-const IR_AC_EVENT_REFRESH_DELAY_MS = 1_000;
-const IR_AC_EVENT_RETRY_DURATION_MS = 60_000;
-const IR_AC_WATCH_INTERVAL_MS = 5_000;
-const IR_AC_WATCH_DURATION_MS = 30_000;
-const IR_AC_WATCH_COOLDOWN_MS = 120_000;
-const IR_AC_LOCAL_COMMAND_SETTLE_MS = 5_000;
-const IR_AC_FAILURE_BACKOFF_CAP_MS = 60_000;
-
-type InfraredACStatusSyncState = {
-  inFlight?: Promise<boolean>;
-  lastSuccess: number;
-  revision: number;
-  suppressUntil: number;
-  failureCount: number;
-  nextAllowedAt: number;
-  eventTimer?: NodeJS.Timeout;
-  eventTimerDueAt: number;
-  eventDirty: boolean;
-  eventGeneration: number;
-  eventMaxAgeMs: number;
-  eventExpiresAt: number;
-  successSequence: number;
-  localCommandGeneration: number;
-  localCommandPending: boolean;
-  localCommandsInFlight: Set<number>;
-  localCommandOverlap: boolean;
-  localCommandNeedsReconciliation: boolean;
-  watchTimer?: NodeJS.Timeout;
-  watchUntil: number;
-  watchCooldownUntil: number;
-};
-
 export default class TuyaDeviceManager extends EventEmitter {
 
   static readonly Events = Events;
@@ -72,11 +34,6 @@ export default class TuyaDeviceManager extends EventEmitter {
   public ownerIDs: string[] = [];
   public devices: TuyaDevice[] = [];
   public log: ExLogger;
-  private localCommandRouter?: TuyaLocalCommandRouter;
-  private productApiFallback?: TuyaDeviceManager;
-  private runtimeDiagnostics?: RuntimeDiagnosticsStore;
-  private readonly infraredACStatusSync = new Map<string, InfraredACStatusSyncState>();
-  private infraredACStatusSyncStopped = false;
 
   constructor(
     public api: TuyaCloudAPI,
@@ -140,40 +97,6 @@ export default class TuyaDeviceManager extends EventEmitter {
 
   getDevice(deviceID: string) {
     return Array.from(this.devices).find(device => device.id === deviceID);
-  }
-
-  setLocalCommandRouter(router: TuyaLocalCommandRouter) {
-    this.localCommandRouter = router;
-  }
-
-  setProductApiFallback(manager: TuyaDeviceManager) {
-    this.productApiFallback = manager;
-  }
-
-  protected hasProductApiFallback() {
-    return this.productApiFallback !== undefined;
-  }
-
-  setRuntimeDiagnostics(diagnostics: RuntimeDiagnosticsStore) {
-    this.runtimeDiagnostics = diagnostics;
-  }
-
-  stop() {
-    this.infraredACStatusSyncStopped = true;
-    for (const state of this.infraredACStatusSync.values()) {
-      if (state.eventTimer) {
-        clearTimeout(state.eventTimer);
-      }
-      if (state.watchTimer) {
-        clearTimeout(state.watchTimer);
-      }
-      state.eventTimer = undefined;
-      state.eventTimerDueAt = 0;
-      state.eventDirty = false;
-      state.eventExpiresAt = 0;
-      state.watchTimer = undefined;
-    }
-    this.mq.stop();
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -249,433 +172,21 @@ export default class TuyaDeviceManager extends EventEmitter {
   }
 
   async getInfraredRemotes(infraredID: string) {
-    if (this.productApiFallback) {
-      return this.productApiFallback.getInfraredRemotes(infraredID);
-    }
     const res = await this.api.get(`/v2.0/infrareds/${infraredID}/remotes`);
     return res;
   }
 
   async getInfraredKeys(infraredID: string, remoteID: string) {
-    if (this.productApiFallback) {
-      return this.productApiFallback.getInfraredKeys(infraredID, remoteID);
-    }
     const res = await this.api.get(`/v2.0/infrareds/${infraredID}/remotes/${remoteID}/keys`);
     return res;
   }
 
   async getInfraredACStatus(infraredID: string, remoteID: string) {
-    if (this.productApiFallback) {
-      return this.productApiFallback.getInfraredACStatus(infraredID, remoteID);
-    }
     const res = await this.api.get(`/v2.0/infrareds/${infraredID}/remotes/${remoteID}/ac/status`);
     return res;
   }
 
-  async ensureInfraredACStatusFresh(
-    deviceID: string,
-    maxAgeMs = IR_AC_DEFAULT_MAX_AGE_MS,
-  ): Promise<boolean> {
-    if (this.infraredACStatusSyncStopped) {
-      return false;
-    }
-    const device = this.getDevice(deviceID);
-    if (!device || !this.isResolvedInfraredAC(device)) {
-      return false;
-    }
-
-    const state = this.getInfraredACStatusSyncState(deviceID);
-    if (state.inFlight) {
-      return state.inFlight;
-    }
-    const now = Date.now();
-    const boundedMaxAgeMs = Math.max(0, Number.isFinite(maxAgeMs) ? maxAgeMs : IR_AC_DEFAULT_MAX_AGE_MS);
-    if ((state.lastSuccess > 0 && now - state.lastSuccess < boundedMaxAgeMs)
-      || this.hasActiveInfraredACLocalCommand(state)
-      || now < state.suppressUntil
-      || now < state.nextAllowedAt) {
-      return false;
-    }
-
-    const requestRevision = state.revision;
-    const request = this.fetchAndMergeInfraredACStatus(device, state, requestRevision);
-    state.inFlight = request;
-    try {
-      return await request;
-    } finally {
-      if (state.inFlight === request) {
-        state.inFlight = undefined;
-      }
-    }
-  }
-
-  watchInfraredACStatus(deviceID: string) {
-    if (this.infraredACStatusSyncStopped) {
-      return;
-    }
-    const device = this.getDevice(deviceID);
-    if (!device || !this.isResolvedInfraredAC(device)) {
-      return;
-    }
-    const state = this.getInfraredACStatusSyncState(deviceID);
-    const now = Date.now();
-    if (state.watchTimer || now < state.watchUntil || now < state.watchCooldownUntil) {
-      return;
-    }
-    state.watchUntil = now + IR_AC_WATCH_DURATION_MS;
-    state.watchCooldownUntil = state.watchUntil + IR_AC_WATCH_COOLDOWN_MS;
-    this.scheduleInfraredACWatch(deviceID, state);
-  }
-
-  noteInfraredACLocalCommand(deviceID: string) {
-    const device = this.getDevice(deviceID);
-    if (!device || !this.isResolvedInfraredAC(device)) {
-      return 0;
-    }
-    const state = this.getInfraredACStatusSyncState(deviceID);
-    state.localCommandGeneration += 1;
-    state.localCommandPending = true;
-    state.revision += 1;
-    state.lastSuccess = Date.now();
-    state.suppressUntil = state.lastSuccess + IR_AC_LOCAL_COMMAND_SETTLE_MS;
-    state.failureCount = 0;
-    state.nextAllowedAt = 0;
-    return state.localCommandGeneration;
-  }
-
-  beginInfraredACLocalCommand(deviceID: string, commandGeneration: number) {
-    const device = this.getDevice(deviceID);
-    if (!device || !this.isResolvedInfraredAC(device) || commandGeneration <= 0) {
-      return;
-    }
-    const state = this.getInfraredACStatusSyncState(deviceID);
-    state.localCommandsInFlight.add(commandGeneration);
-    if (state.localCommandsInFlight.size > 1) {
-      state.localCommandOverlap = true;
-    }
-  }
-
-  completeInfraredACLocalCommand(deviceID: string, commandGeneration: number, successful: boolean) {
-    const device = this.getDevice(deviceID);
-    if (!device || !this.isResolvedInfraredAC(device)) {
-      return;
-    }
-    const state = this.getInfraredACStatusSyncState(deviceID);
-    state.localCommandsInFlight.delete(commandGeneration);
-    const isLatestCommand = commandGeneration === state.localCommandGeneration;
-    if (isLatestCommand) {
-      state.localCommandPending = false;
-    }
-    if (!successful) {
-      state.localCommandNeedsReconciliation = true;
-    }
-    const now = Date.now();
-    state.suppressUntil = Math.max(state.suppressUntil, now + IR_AC_LOCAL_COMMAND_SETTLE_MS);
-    if (this.hasActiveInfraredACLocalCommand(state)) {
-      return;
-    }
-
-    state.failureCount = 0;
-    state.nextAllowedAt = 0;
-    if (state.localCommandOverlap || state.localCommandNeedsReconciliation || !isLatestCommand) {
-      state.revision += 1;
-      state.lastSuccess = 0;
-      state.localCommandOverlap = false;
-      state.localCommandNeedsReconciliation = false;
-      this.queueInfraredACStatusRefresh(deviceID, 0);
-      return;
-    }
-
-    state.lastSuccess = now;
-    this.schedulePendingInfraredACStatusRefresh(deviceID, state, 0);
-  }
-
-  private getInfraredACStatusSyncState(deviceID: string) {
-    let state = this.infraredACStatusSync.get(deviceID);
-    if (!state) {
-      state = {
-        lastSuccess: 0,
-        revision: 0,
-        suppressUntil: 0,
-        failureCount: 0,
-        nextAllowedAt: 0,
-        eventDirty: false,
-        eventTimerDueAt: 0,
-        eventGeneration: 0,
-        eventMaxAgeMs: Number.POSITIVE_INFINITY,
-        eventExpiresAt: 0,
-        successSequence: 0,
-        localCommandGeneration: 0,
-        localCommandPending: false,
-        localCommandsInFlight: new Set<number>(),
-        localCommandOverlap: false,
-        localCommandNeedsReconciliation: false,
-        watchUntil: 0,
-        watchCooldownUntil: 0,
-      };
-      this.infraredACStatusSync.set(deviceID, state);
-    }
-    return state;
-  }
-
-  private isResolvedInfraredAC(device: TuyaDevice) {
-    return Boolean(
-      (device.parent_id || device.infrared_ac_command_mode === 'device-sharing')
-      && device.isIRRemoteControl()
-      && IR_AC_REQUIRED_STATUS_CODES.every(code => device.status.some(status => status.code === code)),
-    );
-  }
-
-  private hasActiveInfraredACLocalCommand(state: InfraredACStatusSyncState) {
-    return state.localCommandPending || state.localCommandsInFlight.size > 0;
-  }
-
-  private async fetchAndMergeInfraredACStatus(
-    device: TuyaDevice,
-    state: InfraredACStatusSyncState,
-    requestRevision: number,
-  ) {
-    try {
-      const response = await this.getInfraredACStatus(device.parent_id!, device.id);
-      if (this.infraredACStatusSyncStopped || state.revision !== requestRevision) {
-        return false;
-      }
-      if (!response.success
-        || !response.result
-        || typeof response.result !== 'object'
-        || Array.isArray(response.result)
-        || !IR_AC_REQUIRED_STATUS_CODES.every(code => this.isSafeInfraredACStatusValue(response.result[code]))) {
-        this.recordInfraredACStatusRefreshFailure(state);
-        this.log.debug('Get infrared AC status refresh failed. deviceId = %s, code = %s, msg = %s',
-          device.id, response.success ? 'invalid-result' : response.code, response.success ? '' : response.msg);
-        return false;
-      }
-
-      const changed: TuyaDeviceStatus[] = [];
-      for (const code of IR_AC_STATUS_CODES) {
-        const value = response.result[code];
-        if (!this.isSafeInfraredACStatusValue(value)) {
-          continue;
-        }
-        const current = device.status.find(status => status.code === code);
-        if (current) {
-          if (current.value !== value) {
-            current.value = value;
-            changed.push({ code, value });
-          }
-        } else {
-          device.status.push({ code, value });
-          changed.push({ code, value });
-        }
-      }
-
-      state.lastSuccess = Date.now();
-      state.failureCount = 0;
-      state.nextAllowedAt = 0;
-      state.successSequence += 1;
-      if (changed.length > 0) {
-        state.revision += 1;
-        device.status.sort((a, b) => a.code > b.code ? 1 : -1);
-        this.emit(Events.DEVICE_STATUS_UPDATE, device, changed);
-      }
-      return changed.length > 0;
-    } catch (error) {
-      if (!this.infraredACStatusSyncStopped && state.revision === requestRevision) {
-        this.recordInfraredACStatusRefreshFailure(state);
-        this.log.debug('Get infrared AC status refresh failed. deviceId = %s, error = %s', device.id, String(error));
-      }
-      return false;
-    }
-  }
-
-  private isSafeInfraredACStatusValue(value: unknown): value is string | number | boolean {
-    return typeof value === 'boolean'
-      || (typeof value === 'number' && Number.isFinite(value))
-      || (typeof value === 'string' && value.length <= 64);
-  }
-
-  private recordInfraredACStatusRefreshFailure(state: InfraredACStatusSyncState) {
-    state.failureCount = Math.min(state.failureCount + 1, 16);
-    const delay = Math.min(1_000 * Math.pow(2, state.failureCount - 1), IR_AC_FAILURE_BACKOFF_CAP_MS);
-    state.nextAllowedAt = Date.now() + delay;
-  }
-
-  private markInfraredACStatusFresh(deviceID: string, complete: boolean) {
-    const state = this.getInfraredACStatusSyncState(deviceID);
-    state.revision += 1;
-    state.lastSuccess = Date.now();
-    state.failureCount = 0;
-    state.nextAllowedAt = 0;
-    state.successSequence += 1;
-    if (complete) {
-      this.clearPendingInfraredACStatusRefresh(state);
-    }
-  }
-
-  private clearPendingInfraredACStatusRefresh(state: InfraredACStatusSyncState) {
-    if (state.eventTimer) {
-      clearTimeout(state.eventTimer);
-    }
-    state.eventTimer = undefined;
-    state.eventTimerDueAt = 0;
-    state.eventDirty = false;
-    state.eventMaxAgeMs = Number.POSITIVE_INFINITY;
-    state.eventExpiresAt = 0;
-  }
-
-  private queueInfraredACStatusRefresh(
-    deviceID: string,
-    maxAgeMs: number,
-    delayMs = IR_AC_EVENT_REFRESH_DELAY_MS,
-    invalidateInFlight = false,
-  ) {
-    if (this.infraredACStatusSyncStopped) {
-      return;
-    }
-    const state = this.getInfraredACStatusSyncState(deviceID);
-    const invalidatesCurrentRead = invalidateInFlight && state.inFlight !== undefined;
-    if (invalidatesCurrentRead) {
-      state.revision += 1;
-    }
-    const now = Date.now();
-    state.eventDirty = true;
-    state.eventGeneration += 1;
-    state.eventMaxAgeMs = Math.min(state.eventMaxAgeMs, invalidatesCurrentRead ? 0 : Math.max(0, maxAgeMs));
-    state.eventExpiresAt = Math.max(state.eventExpiresAt, now + IR_AC_EVENT_RETRY_DURATION_MS);
-    this.schedulePendingInfraredACStatusRefresh(deviceID, state, delayMs);
-  }
-
-  private schedulePendingInfraredACStatusRefresh(
-    deviceID: string,
-    state: InfraredACStatusSyncState,
-    delayMs: number,
-  ) {
-    if (!state.eventDirty || this.infraredACStatusSyncStopped) {
-      return;
-    }
-    const now = Date.now();
-    const requestedDueAt = now + Math.max(0, delayMs);
-    const dueAt = state.eventExpiresAt > 0
-      ? Math.min(requestedDueAt, state.eventExpiresAt)
-      : requestedDueAt;
-    if (state.eventTimer) {
-      if (state.eventTimerDueAt <= dueAt) {
-        return;
-      }
-      clearTimeout(state.eventTimer);
-      state.eventTimer = undefined;
-    }
-    state.eventTimerDueAt = dueAt;
-    state.eventTimer = setTimeout(() => {
-      state.eventTimer = undefined;
-      state.eventTimerDueAt = 0;
-      void this.processPendingInfraredACStatusRefresh(deviceID, state);
-    }, Math.max(0, dueAt - Date.now()));
-    state.eventTimer.unref?.();
-  }
-
-  private async processPendingInfraredACStatusRefresh(deviceID: string, state: InfraredACStatusSyncState) {
-    if (this.infraredACStatusSyncStopped || !state.eventDirty) {
-      return;
-    }
-    const now = Date.now();
-    if (state.eventExpiresAt > 0 && now >= state.eventExpiresAt) {
-      this.clearPendingInfraredACStatusRefresh(state);
-      return;
-    }
-    const device = this.getDevice(deviceID);
-    if (!device || !this.isResolvedInfraredAC(device)) {
-      this.clearPendingInfraredACStatusRefresh(state);
-      return;
-    }
-    if (this.hasActiveInfraredACLocalCommand(state)) {
-      return;
-    }
-    if (state.inFlight) {
-      const inFlight = state.inFlight;
-      void inFlight.finally(() => {
-        this.schedulePendingInfraredACStatusRefresh(deviceID, state, 0);
-      });
-      return;
-    }
-
-    const freshnessDelayUntil = state.lastSuccess > 0 && Number.isFinite(state.eventMaxAgeMs)
-      ? state.lastSuccess + state.eventMaxAgeMs
-      : 0;
-    const eligibleAt = Math.max(state.suppressUntil, state.nextAllowedAt, freshnessDelayUntil);
-    if (now < eligibleAt) {
-      this.schedulePendingInfraredACStatusRefresh(deviceID, state, eligibleAt - now);
-      return;
-    }
-
-    const generation = state.eventGeneration;
-    const successSequence = state.successSequence;
-    await this.ensureInfraredACStatusFresh(deviceID, 0);
-    if (this.infraredACStatusSyncStopped || !state.eventDirty) {
-      return;
-    }
-    if (state.successSequence > successSequence && state.eventGeneration === generation) {
-      this.clearPendingInfraredACStatusRefresh(state);
-      return;
-    }
-    this.schedulePendingInfraredACStatusRefresh(deviceID, state, 0);
-  }
-
-  private scheduleInfraredACWatch(deviceID: string, state: InfraredACStatusSyncState) {
-    if (state.watchTimer || this.infraredACStatusSyncStopped || Date.now() >= state.watchUntil) {
-      return;
-    }
-    state.watchTimer = setTimeout(() => {
-      state.watchTimer = undefined;
-      if (this.infraredACStatusSyncStopped || Date.now() >= state.watchUntil) {
-        return;
-      }
-      void this.ensureInfraredACStatusFresh(deviceID, 0).finally(() => {
-        this.scheduleInfraredACWatch(deviceID, state);
-      });
-    }, IR_AC_WATCH_INTERVAL_MS);
-    state.watchTimer.unref?.();
-  }
-
-  private reconcileInfraredACStatusAfterMQTT(device: TuyaDevice, status: TuyaDeviceStatus[]) {
-    if (this.isResolvedInfraredAC(device)) {
-      const reportedCodes = new Set(status.map(item => item.code));
-      const hasKnownStatus = IR_AC_STATUS_CODES.some(code => reportedCodes.has(code));
-      const hasCompleteStatus = IR_AC_REQUIRED_STATUS_CODES.every(code => reportedCodes.has(code));
-      if (hasKnownStatus) {
-        this.markInfraredACStatusFresh(device.id, hasCompleteStatus);
-      }
-      if (!hasCompleteStatus) {
-        this.queueInfraredACStatusRefresh(device.id, 0);
-      }
-      return;
-    }
-
-    for (const child of this.devices.filter(candidate => candidate.parent_id === device.id && this.isResolvedInfraredAC(candidate))) {
-      this.queueInfraredACStatusRefresh(child.id, IR_AC_PARENT_MAX_AGE_MS, IR_AC_EVENT_REFRESH_DELAY_MS, true);
-    }
-  }
-
-  private filterInfraredACStatusDuringLocalCommand(device: TuyaDevice, status: TuyaDeviceStatus[]) {
-    if (!this.isResolvedInfraredAC(device)) {
-      return status;
-    }
-    const state = this.getInfraredACStatusSyncState(device.id);
-    const hasActiveLocalCommand = this.hasActiveInfraredACLocalCommand(state);
-    if (!hasActiveLocalCommand && Date.now() >= state.suppressUntil) {
-      return status;
-    }
-    const acceptedStatus = status.filter(item => !IR_AC_STATUS_CODES.some(code => code === item.code));
-    if (hasActiveLocalCommand && acceptedStatus.length !== status.length) {
-      state.localCommandNeedsReconciliation = true;
-    }
-    return acceptedStatus;
-  }
-
   async getInfraredDIYKeys(infraredID: string, remoteID: string) {
-    if (this.productApiFallback) {
-      return this.productApiFallback.getInfraredDIYKeys(infraredID, remoteID);
-    }
     const res = await this.api.get(`/v2.0/infrareds/${infraredID}/remotes/${remoteID}/learning-codes`);
     return res;
   }
@@ -808,7 +319,6 @@ export default class TuyaDeviceManager extends EventEmitter {
             continue;
           }
           subDevice.status = Object.entries(res.result).map(([key, value]) => ({code: key, value} as TuyaDeviceStatus));
-          subDevice.infrared_ac_product_api_resolved = true;
         } else if (category_id === 999) { // DIY Device
           const res = await this.getInfraredDIYKeys(irDevice.id, subDevice.id);
           if (!res.success) {
@@ -846,9 +356,6 @@ export default class TuyaDeviceManager extends EventEmitter {
   }
 
   async sendInfraredCommands(infraredID: string, remoteID: string, category_id: number, remote_index: number, key: string, key_id: number) {
-    if (this.productApiFallback) {
-      return this.productApiFallback.sendInfraredCommands(infraredID, remoteID, category_id, remote_index, key, key_id);
-    }
     const res = await this.api.post(`/v2.0/infrareds/${infraredID}/remotes/${remoteID}/raw/command`, {
       category_id, remote_index, key, key_id,
     });
@@ -856,9 +363,6 @@ export default class TuyaDeviceManager extends EventEmitter {
   }
 
   async sendInfraredACCommands(infraredID: string, remoteID: string, power: number, mode: number, temp: number, wind: number) {
-    if (this.productApiFallback) {
-      return this.productApiFallback.sendInfraredACCommands(infraredID, remoteID, power, mode, temp, wind);
-    }
     const commands = (power === 1) ? { power, mode, temp, wind } : { power };
     const res = await this.api.post(`/v2.0/infrareds/${infraredID}/air-conditioners/${remoteID}/scenes/command`, commands);
     if (!res.success) {
@@ -868,9 +372,6 @@ export default class TuyaDeviceManager extends EventEmitter {
   }
 
   async sendInfraredDIYCommands(infraredID: string, remoteID: string, code: string) {
-    if (this.productApiFallback) {
-      return this.productApiFallback.sendInfraredDIYCommands(infraredID, remoteID, code);
-    }
     const res = await this.api.post(`/v2.0/infrareds/${infraredID}/remotes/${remoteID}/learning-codes`, { code });
     // const res = await this.api.post(`/v1.0/infrareds/${infraredID}/remotes/${remoteID}/learning-codes`, { code });
     return res;
@@ -878,9 +379,6 @@ export default class TuyaDeviceManager extends EventEmitter {
 
 
   async getLockTemporaryKey(deviceID: string) {
-    if (this.productApiFallback) {
-      return this.productApiFallback.getLockTemporaryKey(deviceID);
-    }
     // const res = await this.api.post(`/v1.0/smart-lock/devices/${deviceID}/door-lock/password-ticket`);
     const res = await this.api.post(`/v1.0/smart-lock/devices/${deviceID}/password-ticket`);
     if (res.success === false) {
@@ -890,9 +388,6 @@ export default class TuyaDeviceManager extends EventEmitter {
   }
 
   async sendLockCommands(deviceID: string, ticketID: string, open: boolean) {
-    if (this.productApiFallback) {
-      return this.productApiFallback.sendLockCommands(deviceID, ticketID, open);
-    }
     const res = await this.api.post(`/v1.0/smart-lock/devices/${deviceID}/password-free/door-operate`, {
       device_id: deviceID,
       ticket_id: ticketID,
@@ -903,55 +398,8 @@ export default class TuyaDeviceManager extends EventEmitter {
 
 
   async sendCommands(deviceID: string, commands: TuyaDeviceStatus[]) {
-    const sendCloud = () => this.sendCloudCommands(deviceID, commands);
-    const device = this.getDevice(deviceID);
-    const observe = (attempt: CommandAttemptDiagnostic) => {
-      this.runtimeDiagnostics?.recordCommand(deviceID, commands.map(command => command.code), attempt);
-    };
-    return device && this.localCommandRouter
-      ? this.localCommandRouter.send(device, commands, sendCloud, observe)
-      : this.sendObservedCloud(sendCloud, observe);
-  }
-
-  private async sendObservedCloud(
-    sendCloud: () => Promise<unknown>,
-    observe: (attempt: CommandAttemptDiagnostic) => void,
-  ) {
-    const startedAt = Date.now();
-    try {
-      const result = await sendCloud();
-      if (result === false) {
-        observe({
-          requestedRoute: 'cloud',
-          attemptedRoute: 'cloud',
-          outcome: 'failure',
-          durationMs: Date.now() - startedAt,
-          error: new Error('Tuya Cloud rejected the command.'),
-        });
-        return result;
-      }
-      observe({
-        requestedRoute: 'cloud',
-        attemptedRoute: 'cloud',
-        outcome: 'success',
-        durationMs: Date.now() - startedAt,
-      });
-      return result;
-    } catch (error) {
-      observe({
-        requestedRoute: 'cloud',
-        attemptedRoute: 'cloud',
-        outcome: 'failure',
-        durationMs: Date.now() - startedAt,
-        error,
-      });
-      throw error;
-    }
-  }
-
-  protected async sendCloudCommands(deviceID: string, commands: TuyaDeviceStatus[]) {
     const res = await this.api.post(`/v1.0/devices/${deviceID}/commands`, { commands });
-    return res.success ? res.result : false;
+    return res.result;
   }
 
   async getCurrentWeather(lat: string, lon: string) {
@@ -976,19 +424,12 @@ export default class TuyaDeviceManager extends EventEmitter {
         return `rtsp://${cameraConfig.username}:${cameraConfig.password}@${rtspUrl.substring('rtsp://'.length)}`;
       }
     }
-    if (this.productApiFallback) {
-      return this.productApiFallback.retrieveDeviceRTSP(device);
-    }
     const data = await this.api.post(`/v1.0/devices/${device.id}/stream/actions/allocate`, { type: 'rtsp' });
     return data.result.url;
   }
 
 
   async onMQTTMessage(topic: string, protocol: TuyaMQTTProtocol, message) {
-    this.runtimeDiagnostics?.recordMqtt(
-      protocol,
-      typeof message?.devId === 'string' ? message.devId : undefined,
-    );
     switch(protocol) {
       case TuyaMQTTProtocol.DEVICE_STATUS_UPDATE: {
         const { devId, status } = message;
@@ -996,20 +437,16 @@ export default class TuyaDeviceManager extends EventEmitter {
         if (!device) {
           return;
         }
-        const acceptedStatus = this.filterInfraredACStatusDuringLocalCommand(device, status);
 
         for (const item of device.status) {
-          const _item = acceptedStatus.find(_item => _item.code === item.code);
+          const _item = status.find(_item => _item.code === item.code);
           if (!_item) {
             continue;
           }
           item.value = _item.value;
         }
 
-        this.reconcileInfraredACStatusAfterMQTT(device, acceptedStatus);
-        if (acceptedStatus.length > 0) {
-          this.emit(Events.DEVICE_STATUS_UPDATE, device, acceptedStatus);
-        }
+        this.emit(Events.DEVICE_STATUS_UPDATE, device, status);
         break;
       }
       case TuyaMQTTProtocol.DEVICE_INFO_UPDATE: {

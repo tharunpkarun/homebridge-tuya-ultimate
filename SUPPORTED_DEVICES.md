@@ -1,11 +1,9 @@
 # Supported Tuya Devices
 
-First-class category name, second-class category name, and category code can be found here:
+First-class category name, sedond-class category name, category code can be found here:
 https://developer.tuya.com/docs/iot/standarddescription?id=K9i5ql6waswzq
 
 Most category code is pinyin abbreviation of Chinese name.
-
-This matrix lists explicit category handlers. Optional `capabilityAutoDetection` can conservatively route an otherwise unsupported category when it already exposes recognized standard datapoints, but it does not make every product in that category compatible. Required datapoints, units, firmware, and account permissions still apply.
 
 ## Lighting
 
@@ -112,7 +110,7 @@ This matrix lists explicit category handlers. Optional `capabilityAutoDetection`
 | Name | Name (zh) | Code | Homebridge Service | Supported | Links |
 | ---- | ---- | ---- | ---- | ---- | ---- |
 | Alarm Host | 报警主机 | mal | Security System | ✅ | [Documentation](https://developer.tuya.com/en/docs/iot/categorymal?id=Kaiuz33clqxaf) |
-| Smart Camera | 智能摄像机 | sp | Motion Sensor<br> Doorbell<br> Camera / HKSV when eligible | ✅ | [Documentation](https://developer.tuya.com/en/docs/iot/categorysp?id=Kaiuz35leyo12) |
+| Smart Camera | 智能摄像机 | sp | Motion Sensor<br> Doorbell | ✅ | [Documentation](https://developer.tuya.com/en/docs/iot/categorysp?id=Kaiuz35leyo12) |
 | Wireless Doorbell | 无线门铃 | wxml | StatelessProgrammableSwitch | ✅ | Documentation |
 | Siren Alarm | 声光报警传感器 | sgbj | | | [Documentation](https://developer.tuya.com/en/docs/iot/categorysgbj?id=Kaiuz37tlpbnu) |
 | Gas Alarm | 燃气报警传感器 | rqbj | Leak Sensor | ✅ | [Documentation](https://developer.tuya.com/en/docs/iot/categoryrqbj?id=Kaiuz3d162ubw) |
@@ -123,7 +121,7 @@ This matrix lists explicit category handlers. Optional `capabilityAutoDetection`
 | Water Detector | 水浸传感器 | sj | Leak Sensor | ✅ | [Documentation](https://developer.tuya.com/en/docs/iot/categorysj?id=Kaiuz3iub2sli) |
 | Luminance Sensor | 亮度传感器 | ldcg | Light Sensor | ✅ | [Documentation](https://developer.tuya.com/en/docs/iot/categoryldcg?id=Kaiuz3n7u69l8) |
 | Pressure Sensor | 压力传感器 | ylcg<br> ylcgq | | | [Documentation](https://developer.tuya.com/en/docs/iot/categoryylcg?id=Kaiuz3kc2e4gm) |
-| Emergency Button | 紧急按钮 | sos | Stateless Programmable Switch | ✅ | [Documentation](https://developer.tuya.com/en/docs/iot/categorysos?id=Kaiuz3oi6agjy) |
+| Emergency Button | 紧急按钮 | sos | | | [Documentation](https://developer.tuya.com/en/docs/iot/categorysos?id=Kaiuz3oi6agjy) |
 | PM2.5 Detector | PM2.5传感器 | pm25<br> pm2.5<br> pm25cgq | Air Quality Sensor | ✅ | [Documentation](https://developer.tuya.com/en/docs/iot/categorypm25?id=Kaiuz3qof3yfu) |
 | CO Detector | CO报警传感器 | cobj<br> cocgq | Carbon Monoxide Sensor | ✅ | [Documentation](https://developer.tuya.com/en/docs/iot/categorycobj?id=Kaiuz3u1j6q1v) |
 | CO2 Detector | CO2报警传感器 | co2bj<br> co2cgq | Carbon Dioxide Sensor | ✅ | [Documentation](https://developer.tuya.com/en/docs/iot/categoryco2bj?id=Kaiuz3wes7yuy) |
@@ -133,10 +131,6 @@ This matrix lists explicit category handlers. Optional `capabilityAutoDetection`
 | Human Presence Sensor | 人体存在传感器 | hps | Occupancy Sensor | ✅ | [Documentation](https://developer.tuya.com/en/docs/iot/categoryhps?id=Kaiuz42yhn1hs) |
 | Smart Lock | 智能门锁 | ms<br> jtmspro | LockMechanism | ✅ | [Documentation](https://developer.tuya.com/en/docs/iot/ms?id=Kb0o2s20fn9sy) |
 | Environmental Detector | 环境检测仪 | hjjcy | Air Quality Sensor | ✅ | [Documentation](https://developer.tuya.com/en/docs/iot/hjjcy?id=Kbeoad8y1nnlv) |
-
-Emergency buttons emit a single HomeKit programmable-switch event only for explicit active `sos` or `sos_state` reports; normal/reset reports are ignored. A standard battery datapoint is exposed automatically when present. The `sgbj` siren category remains unsupported because its alarm command semantics are not treated as interchangeable with an SOS button.
-
-HKSV recording is available only for non-virtual camera accessories with an available RTSP source, a readable Tuya `movement_detect_pic` event datapoint, and FFmpeg support for both `libx264` and native `aac`. HKSV advertises the linked motion sensor as its recording trigger; a separately exposed Doorbell service is not advertised as an HKSV trigger. A standalone manual RTSP entry without that Tuya event source remains live-stream-only. Live streaming and product-specific camera APIs remain subject to the camera model and Tuya account/project permissions.
 
 
 ## Exercise & Health
@@ -162,11 +156,9 @@ HKSV recording is available only for non-virtual camera accessories with an avai
 
 | Name | Name (zh) | Code | Homebridge Service | Supported | Links |
 | ---- | ---- | ---- | ---- | ---- | ---- |
-| Smart Electricity Meter | 智能电表 | zndb | Outlet (read-only energy metrics) | ✅ | [Documentation](https://developer.tuya.com/en/docs/iot/smart-meter?id=Kaiuz4gv6ack7) |
+| Smart Electricity Meter | 智能电表 | zndb | | | [Documentation](https://developer.tuya.com/en/docs/iot/smart-meter?id=Kaiuz4gv6ack7) |
 | Smart Water Meter | 智能水表 | znsb | | | [Documentation](https://developer.tuya.com/en/docs/iot/smart-water-meter?id=Kaiuz4jf0jy9f) |
 | Circuit Breaker | 断路器 | dlq | Switch | ✅ | [Documentation](https://developer.tuya.com/en/docs/iot/dlq?id=Kb0kidk9enyh8) |
-
-The `zndb` service is deliberately non-commanding. It exposes known numeric current, power, voltage, and forward/total energy datapoints through read-only energy characteristics. Scalar per-phase datapoints can create separate services; raw compound phase payloads and reverse-energy accounting are not guessed. `options.energyHistory` is a separate opt-in local archive and does not import Tuya app history.
 
 
 ## Digital Entertainment
@@ -192,7 +184,7 @@ The `zndb` service is deliberately non-commanding. It exposes known numeric curr
 | TV | 电视 | infrared_tv | Switch | ✅ | [Documentation](https://developer.tuya.com/en/docs/cloud/infrared-common-apis?id=Kb3oe2o7z0so9) |
 | STB | 机顶盒 | infrared_stb | Switch | ✅ | [Documentation](https://developer.tuya.com/en/docs/cloud/infrared-common-apis?id=Kb3oe2o7z0so9) |
 | TV Box | 电视盒子 | infrared_box | Switch | ✅ | [Documentation](https://developer.tuya.com/en/docs/cloud/infrared-common-apis?id=Kb3oe2o7z0so9) |
-| Air Conditioner | 空调 | infrared_ac | Heater Cooler<br>Humidity Sensor when exposed by the hub | ✅ (Developer Cloud or compatible QR sharing schema) | [Documentation](https://developer.tuya.com/en/docs/cloud/infrared-air-conditioner-apis?id=Kb3oe9ehg02fn) |
+| Air Conditioner | 空调 | infrared_ac | Heater Cooler<br> Humidifier Dehumidifier<br> Fanv2 | ✅ | [Documentation](https://developer.tuya.com/en/docs/cloud/infrared-air-conditioner-apis?id=Kb3oe9ehg02fn) |
 | Fan | 电风扇 | infrared_fan | Switch | ✅ | [Documentation](https://developer.tuya.com/en/docs/cloud/infrared-common-apis?id=Kb3oe2o7z0so9) |
 | Light | 灯 | infrared_light | Switch | ✅ | [Documentation](https://developer.tuya.com/en/docs/cloud/infrared-common-apis?id=Kb3oe2o7z0so9) |
 | Amplifier | 音响 | infrared_amplifier | Switch | ✅ | [Documentation](https://developer.tuya.com/en/docs/cloud/infrared-common-apis?id=Kb3oe2o7z0so9) |

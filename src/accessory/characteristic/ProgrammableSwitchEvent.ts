@@ -36,16 +36,11 @@ export function onProgrammableSwitchEvent(accessory: BaseAccessory, service: Ser
 
   const schema = accessory.getSchema(status.code)!;
   if (schema.type === TuyaDeviceSchemaType.Raw || schema.type === TuyaDeviceSchemaType.String) { // doorbell_pic or alarm_message
-    if (typeof status.value !== 'string' || status.value.length === 0 || status.value.length > 256 * 1024) {
-      return;
-    }
-    const url = Buffer.from(status.value, 'base64').toString('binary');
+    const url = Buffer.from(status.value as string, 'base64').toString('binary');
     if (url.length === 0) {
       return;
     }
-    // Alarm payloads are frequently signed image URLs. Treat their presence as
-    // the event signal without copying credentials or tokens into logs.
-    accessory.log.info('Alarm event detected.');
+    accessory.log.info('Alarm message:', url);
     value = SINGLE_PRESS;
   } else if (schema.type === TuyaDeviceSchemaType.Enum) {
     if (status.value === 'click' || status.value === 'single_click' || status.value === '1') {

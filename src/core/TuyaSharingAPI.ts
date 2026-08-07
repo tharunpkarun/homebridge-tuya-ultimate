@@ -1,50 +1,21 @@
 import Crypto from 'crypto';
-import { Agent, buildConnector, fetch as undiciFetch } from 'undici';
-import type { RequestInit as UndiciRequestInit } from 'undici';
 import { v4 as uuidv4 } from 'uuid';
 
 import { TuyaCloudAPI, TuyaCloudResponse, TuyaCloudTokenInfo } from './TuyaCloudAPI';
 import { TuyaSharingCredentials } from './TuyaSharingAuth';
 
 const NONCE_ALPHABET = 'ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678';
-const DEFAULT_REQUEST_ATTEMPTS = 3;
-const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
-const DEFAULT_RETRY_DELAY_MS = 250;
-
-let ipv4Dispatcher: Agent | undefined;
 
 type SharingTokenUpdate = TuyaSharingCredentials['token_info'];
 
 type TuyaSharingAPIOptions = {
   credentials: TuyaSharingCredentials;
   onTokenUpdate?: (token: SharingTokenUpdate) => void | Promise<void>;
-  onRequestRetry?: (error: Error, attempt: number, maxAttempts: number, delayMs: number) => void;
-  fetch?: typeof undiciFetch;
-  forceIPv4?: boolean;
-  requestAttempts?: number;
-  requestTimeoutMs?: number;
-  retryDelay?: (delayMs: number) => Promise<void>;
+  fetch?: typeof fetch;
   now?: () => number;
   requestId?: () => string;
   nonce?: () => string;
 };
-
-export class TuyaSharingRequestError extends Error {
-  constructor(message: string, public readonly retryable: boolean, cause?: Error) {
-    super(message, cause ? { cause } : undefined);
-    this.name = 'TuyaSharingRequestError';
-  }
-}
-
-class TuyaSharingHttpError extends TuyaSharingRequestError {
-  constructor(public readonly status: number) {
-    super(
-      `Tuya account API returned HTTP ${status}`,
-      status === 408 || status === 425 || status === 429 || status >= 500,
-    );
-    this.name = 'TuyaSharingHttpError';
-  }
-}
 
 /**
  * Node port of Tuya's MIT-licensed tuya-device-sharing-sdk CustomerApi.
@@ -57,11 +28,10 @@ export default class TuyaSharingAPI implements TuyaCloudAPI {
 
   private tokenIssuedAt: number;
   private tokenExpiresInSeconds: number;
-  private readonly fetchImpl: typeof undiciFetch;
+  private readonly fetchImpl: typeof fetch;
   private readonly now: () => number;
   private readonly requestId: () => string;
   private readonly nonce: () => string;
-  private preferIPv4: boolean;
   private refreshPromise?: Promise<void>;
 
   constructor(private readonly options: TuyaSharingAPIOptions) {
@@ -75,11 +45,10 @@ export default class TuyaSharingAPI implements TuyaCloudAPI {
       uid: token.uid,
       expire: token.t + token.expire_time * 1000,
     };
-    this.fetchImpl = options.fetch ?? undiciFetch;
+    this.fetchImpl = options.fetch ?? fetch;
     this.now = options.now ?? Date.now;
     this.requestId = options.requestId ?? uuidv4;
     this.nonce = options.nonce ?? (() => randomNonce(12));
-    this.preferIPv4 = options.forceIPv4 === true;
   }
 
   async get(path: string, params?: Record<string, unknown>): Promise<TuyaCloudResponse> {
@@ -108,46 +77,6 @@ export default class TuyaSharingAPI implements TuyaCloudAPI {
     if (!skipRefresh) {
       await this.refreshAccessTokenIfNeeded();
     }
-
-    const maxAttempts = method === 'GET'
-      ? Math.max(1, Math.floor(this.options.requestAttempts ?? DEFAULT_REQUEST_ATTEMPTS))
-      : 1;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        return await this.sendRequest(method, path, params, body, this.preferIPv4 || attempt > 1);
-      } catch (error) {
-        const requestError = error instanceof Error ? error : new Error(String(error));
-        const retryable = !(requestError instanceof TuyaSharingRequestError) || requestError.retryable;
-        if (!retryable || attempt >= maxAttempts) {
-          if (requestError instanceof TuyaSharingRequestError) {
-            throw requestError;
-          }
-          throw new TuyaSharingRequestError(
-            `Tuya account request failed: ${requestError.message}`,
-            retryable,
-            requestError,
-          );
-        }
-        this.preferIPv4 = true;
-        const delayMs = Math.min(DEFAULT_RETRY_DELAY_MS * 2 ** (attempt - 1), 2_000);
-        this.options.onRequestRetry?.(requestError, attempt, maxAttempts, delayMs);
-        if (this.options.retryDelay) {
-          await this.options.retryDelay(delayMs);
-        } else {
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-      }
-    }
-    throw new Error('Tuya account request failed without an error.');
-  }
-
-  private async sendRequest(
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
-    path: string,
-    params?: Record<string, unknown>,
-    body?: Record<string, unknown>,
-    useIPv4 = false,
-  ): Promise<TuyaCloudResponse> {
 
     const requestId = this.requestId();
     const hashKey = Crypto.createHash('md5')
@@ -181,24 +110,16 @@ export default class TuyaSharingAPI implements TuyaCloudAPI {
 
     const query = queryEncdata ? `?${new URLSearchParams({ encdata: queryEncdata })}` : '';
     const controller = new AbortController();
-    const timeout = setTimeout(
-      () => controller.abort(),
-      Math.max(1, this.options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS),
-    );
+    const timeout = setTimeout(() => controller.abort(), 15_000);
     try {
-      const requestInit: UndiciRequestInit = {
+      const response = await this.fetchImpl(`${this.endpoint}${path}${query}`, {
         method,
         headers,
         body: bodyEncdata ? JSON.stringify({ encdata: bodyEncdata }) : undefined,
         signal: controller.signal,
-      };
-      if (useIPv4) {
-        requestInit.dispatcher = getIPv4Dispatcher();
-      }
-      const response = await this.fetchImpl(`${this.endpoint}${path}${query}`, requestInit);
+      });
       if (!response.ok) {
-        await response.body?.cancel();
-        throw new TuyaSharingHttpError(response.status);
+        throw new Error(`Tuya account API returned HTTP ${response.status}`);
       }
 
       const result = await response.json() as TuyaCloudResponse;
@@ -270,13 +191,6 @@ export default class TuyaSharingAPI implements TuyaCloudAPI {
       refresh_token: this.tokenInfo.refresh_token,
     };
   }
-}
-
-function getIPv4Dispatcher(): Agent {
-  ipv4Dispatcher ??= new Agent({
-    connect: buildConnector({ family: 4 } as buildConnector.BuildOptions),
-  });
-  return ipv4Dispatcher;
 }
 
 function randomNonce(length: number): string {

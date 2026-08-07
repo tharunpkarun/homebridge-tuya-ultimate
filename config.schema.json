@@ -148,71 +148,6 @@
                             "functionBody": "return model.options.projectType === '2' || model.options.projectType === '3';"
                         }
                     },
-                    "developerCloudFallback": {
-                        "title": "Developer Cloud Product API",
-                        "description": "Optional secondary project-token connection in QR mode for IR, lock, and camera product APIs. Use the Access ID, Access Secret, and data center from the linked Tuya Developer Platform project.",
-                        "type": "object",
-                        "properties": {
-                            "enabled": { "title": "Enable Product API", "type": "boolean", "default": false },
-                            "endpoint": { "title": "Data Center Endpoint URL", "type": "string", "format": "url" },
-                            "accessId": { "title": "Access ID", "type": "string" },
-                            "accessKey": {
-                                "title": "Access Secret",
-                                "type": "string",
-                                "x-schema-form": { "type": "password" }
-                            },
-                            "countryCode": { "title": "Legacy Country Code", "description": "Used only to infer a data center when Endpoint URL is empty.", "type": "integer", "minimum": 1 },
-                            "username": { "title": "Legacy App Username", "description": "No longer used by project-token authentication.", "type": "string" },
-                            "password": {
-                                "title": "Legacy App Password",
-                                "description": "No longer used by project-token authentication.",
-                                "type": "string",
-                                "x-schema-form": { "type": "password" }
-                            },
-                            "appSchema": {
-                                "title": "Legacy App",
-                                "description": "No longer used by project-token authentication.",
-                                "type": "string",
-                                "default": "tuyaSmart",
-                                "enum": ["tuyaSmart", "smartlife"]
-                            }
-                        },
-                        "condition": {
-                            "functionBody": "return model.options.projectType === '3';"
-                        }
-                    },
-                    "capabilityAutoDetection": {
-                        "title": "Capability-based Device Detection",
-                        "description": "Conservatively map otherwise unsupported devices from standard Tuya datapoints. Explicit device overrides still take precedence.",
-                        "type": "boolean",
-                        "default": false
-                    },
-                    "energyHistory": {
-                        "title": "Energy History",
-                        "description": "Persist allowlisted power, current, voltage, and energy datapoints locally for diagnostics and charts.",
-                        "type": "object",
-                        "properties": {
-                            "enabled": {
-                                "title": "Enable Energy History",
-                                "type": "boolean",
-                                "default": false
-                            },
-                            "retentionDays": {
-                                "title": "Retention (days)",
-                                "type": "integer",
-                                "minimum": 1,
-                                "maximum": 365,
-                                "default": 30
-                            },
-                            "sampleIntervalMinutes": {
-                                "title": "Sample Interval (minutes)",
-                                "type": "integer",
-                                "minimum": 1,
-                                "maximum": 1440,
-                                "default": 5
-                            }
-                        }
-                    },
                     "deviceOverrides": {
                         "title": "Device Overriding Configs",
                         "type": "array",
@@ -225,17 +160,9 @@
                                     "description": "Device ID or Product ID or `global`",
                                     "type": "string"
                                 },
-                                "hidden": {
-                                    "title": "Hide Accessory",
-                                    "description": "Do not publish this device or scene to Apple Home. Legacy category `hidden` remains supported.",
-                                    "type": "boolean",
-                                    "condition": {
-                                        "functionBody": "return (model.options && model.options.deviceOverrides);"
-                                    }
-                                },
                                 "category": {
                                     "title": "Category",
-                                    "description": "Optional Tuya category override. Use Hide Accessory instead of the legacy `hidden` category.",
+                                    "description": "Category Code or `hidden`",
                                     "type": "string",
                                     "condition": {
                                         "functionBody": "return (model.options && model.options.deviceOverrides);"
@@ -249,96 +176,12 @@
                                         "functionBody": "return (model.options && model.options.deviceOverrides);"
                                     }
                                 },
-                                "adaptiveLighting": {
-                                    "title": "Adaptive Lighting",
-                                    "description": "Enable HomeKit Adaptive Lighting for a compatible light with brightness and color-temperature datapoints.",
-                                    "type": "boolean",
-                                    "condition": {
-                                        "functionBody": "return (model.options && model.options.deviceOverrides);"
-                                    }
-                                },
                                 "garageDoorUseContactSensorForState": {
                                     "title": "Use Contact Sensor For Garage Door State",
                                     "description": "For garage door controllers only. Derive CurrentDoorState and TargetDoorState reads from doorcontact_state instead of switch_1.",
                                     "type": "boolean",
                                     "condition": {
                                         "functionBody": "return (model.options && model.options.deviceOverrides && model.options.deviceOverrides[arrayIndices[0]].category === 'ckmkzq');"
-                                    }
-                                },
-                                "irAirConditionerPowerOnMode": {
-                                    "title": "IR AC Power-On Mode",
-                                    "description": "Mode used when Apple Home sends a plain Turn On command to an IR air conditioner.",
-                                    "type": "string",
-                                    "default": "cool",
-                                    "oneOf": [
-                                        { "title": "Cool", "enum": ["cool"] },
-                                        { "title": "Heat", "enum": ["heat"] },
-                                        { "title": "Auto", "enum": ["auto"] },
-                                        { "title": "Last Mode", "enum": ["last"] }
-                                    ],
-                                    "condition": {
-                                        "functionBody": "return (model.options && model.options.deviceOverrides);"
-                                    }
-                                },
-                                "irAirConditionerLocalIp": {
-                                    "title": "IR Thermostat LAN IP",
-                                    "description": "Private LAN address of the physical IR thermostat. QR authorization supplies the local key automatically when available.",
-                                    "type": "string",
-                                    "pattern": "^(10\\.(?:[0-9]{1,3}\\.){2}[0-9]{1,3}|192\\.168\\.(?:[0-9]{1,3}\\.)[0-9]{1,3}|172\\.(?:1[6-9]|2[0-9]|3[01])\\.(?:[0-9]{1,3}\\.)[0-9]{1,3})$",
-                                    "condition": {
-                                        "functionBody": "return (model.options && model.options.deviceOverrides);"
-                                    }
-                                },
-                                "localControl": {
-                                    "title": "Local LAN Control",
-                                    "description": "Optional Tuya protocol 3.3 control. Hybrid mode falls back to Tuya Cloud when LAN control fails.",
-                                    "type": "object",
-                                    "properties": {
-                                        "mode": {
-                                            "title": "Command Route",
-                                            "type": "string",
-                                            "default": "cloud",
-                                            "oneOf": [
-                                                { "title": "Cloud", "enum": ["cloud"] },
-                                                { "title": "Local with Cloud Fallback", "enum": ["hybrid"] },
-                                                { "title": "Local Only", "enum": ["local"] }
-                                            ]
-                                        },
-                                        "ip": {
-                                            "title": "Local IP Address",
-                                            "type": "string"
-                                        },
-                                        "localKey": {
-                                            "title": "Local Key",
-                                            "description": "Exactly 16 bytes. This secret is never written to logs.",
-                                            "type": "string",
-                                            "x-schema-form": { "type": "password" }
-                                        },
-                                        "protocolVersion": {
-                                            "title": "LAN Protocol",
-                                            "type": "string",
-                                            "default": "3.3",
-                                            "enum": ["3.3"]
-                                        },
-                                        "timeoutMs": {
-                                            "title": "LAN Timeout (milliseconds)",
-                                            "type": "integer",
-                                            "minimum": 250,
-                                            "maximum": 30000,
-                                            "default": 3000
-                                        },
-                                        "dpMap": {
-                                            "title": "Datapoint Mapping",
-                                            "type": "array",
-                                            "items": {
-                                                "type": "object",
-                                                "required": ["code", "dpId"],
-                                                "properties": {
-                                                    "code": { "title": "Schema Code", "type": "string" },
-                                                    "dpId": { "title": "DP ID", "type": "integer", "minimum": 1 }
-                                                }
-                                            }
-                                        }
                                     }
                                 },
                                 "schema": {
@@ -609,20 +452,7 @@
                 "options.appSchema",
                 "options.userCode",
                 "options.clientId",
-                "options.qrSchema",
-                {
-                    "key": "options.developerCloudFallback",
-                    "items": [
-                        "options.developerCloudFallback.enabled",
-                        "options.developerCloudFallback.endpoint",
-                        "options.developerCloudFallback.accessId",
-                        "options.developerCloudFallback.accessKey",
-                        "options.developerCloudFallback.countryCode",
-                        "options.developerCloudFallback.username",
-                        "options.developerCloudFallback.password",
-                        "options.developerCloudFallback.appSchema"
-                    ]
-                }
+                "options.qrSchema"
             ]
         },
         {
@@ -664,17 +494,6 @@
             "notitle": false,
             "items": [
                 {
-                    "key": "options.capabilityAutoDetection"
-                },
-                {
-                    "key": "options.energyHistory",
-                    "items": [
-                        "options.energyHistory.enabled",
-                        "options.energyHistory.retentionDays",
-                        "options.energyHistory.sampleIntervalMinutes"
-                    ]
-                },
-                {
                     "key": "options.deviceOverrides",
                     "add": "Add Another Device Override",
                     "title": "{{ 'New Device Override' }}",
@@ -692,44 +511,13 @@
                                     "key": "options.deviceOverrides[].id"
                                 },
                                 {
-                                    "key": "options.deviceOverrides[].hidden"
-                                },
-                                {
                                     "key": "options.deviceOverrides[].category"
                                 },
                                 {
                                     "key": "options.deviceOverrides[].unbridged"
                                 },
                                 {
-                                    "key": "options.deviceOverrides[].adaptiveLighting"
-                                },
-                                {
                                     "key": "options.deviceOverrides[].garageDoorUseContactSensorForState"
-                                },
-                                {
-                                    "key": "options.deviceOverrides[].irAirConditionerPowerOnMode"
-                                },
-                                {
-                                    "key": "options.deviceOverrides[].irAirConditionerLocalIp"
-                                },
-                                {
-                                    "key": "options.deviceOverrides[].localControl",
-                                    "items": [
-                                        "options.deviceOverrides[].localControl.mode",
-                                        "options.deviceOverrides[].localControl.ip",
-                                        "options.deviceOverrides[].localControl.localKey",
-                                        "options.deviceOverrides[].localControl.protocolVersion",
-                                        "options.deviceOverrides[].localControl.timeoutMs",
-                                        {
-                                            "key": "options.deviceOverrides[].localControl.dpMap",
-                                            "add": "Add DP Mapping",
-                                            "type": "tabarray",
-                                            "items": [
-                                                "options.deviceOverrides[].localControl.dpMap[].code",
-                                                "options.deviceOverrides[].localControl.dpMap[].dpId"
-                                            ]
-                                        }
-                                    ]
                                 },
                                 {
                                     "key": "options.deviceOverrides[].schema",

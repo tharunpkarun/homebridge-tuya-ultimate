@@ -2,63 +2,6 @@
 
 ## Unreleased
 
-### Added
- - Expose compatible QR-authorized `infrared_ac` virtual remotes as HomeKit thermostats through Tuya's normal device-sharing functions (`PowerOn`, `PowerOff`, `M`, `T`, and `F`) without requiring the blocked product-specific IR APIs.
- - Add per-device Config UI accessory options for visibility, category, bridged/external exposure, and compatible light, garage, and IR AC behavior, with explicit saves and restart guidance.
- - Add QR-mode Developer Cloud product-access fields to the Config UI so one linked project can supplement QR for IR, lock, and camera APIs.
- - Guide Developer Cloud setup in the Config UI and, after QR approval, offer product access as an optional next step while allowing QR-only completion.
-
-### Fixed
- - Build safe mode, temperature, fan, and optimistic one-way status metadata for QR IR air conditioners while preserving the richer Developer Cloud IR path when configured.
- - Recover QR virtual IR command schemas embedded in Tuya's device-inventory `mapping` field when the separate specifications endpoint returns no schema or status data, including compatible air conditioners and static buttons on known IR remote categories.
- - Retry Tuya error `1109` from compatible virtual IR air conditioners through the physical MOES-style IR thermostat datapoints exposed by the QR account API, accepting Tuya's string-form error code and inventories that omit the child-to-parent link or hide DP metadata.
- - Fall back to an in-memory QR-authorized LAN command for compatible protocol-3.3 IR thermostats when Tuya rejects both virtual and physical QR cloud commands; local keys are never added to device snapshots or logs.
- - Add a per-device physical thermostat LAN address and read protocol-3.3 DPs for actual power, mode, temperatures, fan, and humidity instead of retaining the QR child’s empty initial state.
- - Match the MOES S16Pro Home Assistant profile by sending its original physical command codes (`infared_switch`, `target_temp`, `mode`, and `fan_level`) and projecting QR MQTT thermostat reports onto the virtual AC state without requiring a LAN address.
- - Translate virtual IR child MQTT DPs `101`–`104` (`switch_power`, `mode`, `temperature`, and `fan`) into the HomeKit AC state so QR updates replace startup defaults continuously.
- - Initialize IR thermostat heating and cooling thresholds inside their advertised range before narrowing HomeKit's characteristic constraints.
- - Show an initial Config UI loader while stored authorization, homes, and devices are being discovered instead of briefly presenting a false disconnected state.
- - Authenticate the QR-mode Developer Cloud product connection with the project's Access ID, Access Secret, and data center, matching Home Assistant's project-token flow without requiring app login credentials.
- - Restore saved Developer Cloud product fields when Homebridge returns the `configChanged` payload as a configuration array, and preserve an existing Access Secret when a revision form leaves the password input blank.
-
-## [2.7.2] - (2026.8.6)
-
-### Fixed
- - Keep QR account child bridges running when Tuya device discovery encounters a transient network failure, then retry discovery automatically.
- - Retry read-only account requests with a persistent IPv4 fallback and honor the existing `forceIPv4` setting.
- - Preserve cached accessories when Tuya returns an incomplete home, device, or scene inventory.
-
-## [2.7.1] - (2026.8.6)
-
-### Fixed
- - Keep QR account authorization on the account-sharing login endpoint instead of reusing a configured Developer Cloud regional endpoint.
-
-## [2.7.0] - (2026.8.6)
-
-### Added
- - Configurable IR air-conditioner power-on profiles (`Cool`, `Heat`, `Auto`, or `Last`) with deterministic Apple Home automation handling.
- - Read-only Config UI device inspector with allowlisted schema/status diagnostics and safe `deviceOverrides` drafts.
- - Bounded runtime command/MQTT health metadata and a revalidated, pseudonymized support-bundle export.
- - Opt-in capability-based mapping for otherwise unsupported devices that expose recognized standard Tuya datapoints.
- - Locally sampled energy history with configurable retention and interval, atomic owner-only persistence, and schema scale/unit preservation.
- - Opt-in Tuya LAN protocol 3.3 command routing with explicit code-to-DP mappings, local-only or cloud-fallback modes, and credential-safe errors.
- - Optional Developer Cloud product-endpoint fallback for QR-mode IR, lock, and camera operations without duplicating the QR device inventory.
- - HomeKit Secure Video fragmented-MP4 recording pipeline for compatible FFmpeg/RTSP cameras.
- - Minimal owner-only accessory-layout backups before stale Homebridge cache entries are removed.
-
-### Changed
- - Unsupported categories can be conservatively routed by datapoint capability when capability-based detection is enabled.
-
-### Fixed
- - Ensure an Apple Home plain `Turn On` sequence cannot replay HomeKit's default `Auto` target over the configured IR AC power-on profile, including either write order and delayed writes around the IR debounce.
- - Reconcile Smart Life and Tuya Smart IR air-conditioner changes into HomeKit through coalesced cloud-status reads, bounded MQTT-triggered retries, and a short read-triggered polling window without sending another IR command.
- - Allow the explicit stored-QR recovery button to work inside Homebridge's sandboxed Config UI without relying on a blocked native confirmation dialog.
-
-## [2.6.7] - (2026.8.3)
-
-### Fixed
- - Prevent HomeKit's default `Auto` target value from changing an IR thermostat to Auto when an Apple Home automation only turns it on.
-
 ## [2.6.6] - (2026.8.3)
 
 ### Fixed

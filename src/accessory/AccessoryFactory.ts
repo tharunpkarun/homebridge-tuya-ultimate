@@ -50,9 +50,6 @@ import WetBulbGlobeTemperatureAccessory from './WetBulbGlobeTemperatureAccessory
 import IRControlHubSubAccessory from './IRControlHubSubAccessory';
 import LocationWeatherAccessory from './LocationWeatherAccessory';
 import TowelRackAccessory from './TowerRackAccessory';
-import { inferAccessoryCapabilities } from './CapabilityResolver';
-import ElectricityMeterAccessory from './ElectricityMeterAccessory';
-import EmergencyButtonAccessory from './EmergencyButtonAccessory';
 
 
 export default class AccessoryFactory {
@@ -66,19 +63,6 @@ export default class AccessoryFactory {
 
     handler = resolveAccessoryByProductID(platform, accessory, device.product_id)
       || resolveAccessoryByCategory(platform, accessory, device.category);
-
-    if (!handler && platform.options.capabilityAutoDetection) {
-      const inferred = inferAccessoryCapabilities(device);
-      if (inferred) {
-        platform.log.info(
-          'Capability-based mapping selected %s for %s from datapoint(s): %s.',
-          inferred.profile,
-          device.name,
-          inferred.matchedCodes.join(', '),
-        );
-        handler = resolveAccessoryByCategory(platform, accessory, inferred.category);
-      }
-    }
 
     // basically use should set the handler at the switch-case
     if (!handler) {
@@ -227,8 +211,6 @@ function resolveAccessoryByCategory(platform: TuyaPlatform, accessory: PlatformA
       return new SceneSwitchAccessory(platform, accessory);
     case 'bzyd':
       return new WhiteNoiseLightAccessory(platform, accessory);
-    case 'zndb':
-      return new ElectricityMeterAccessory(platform, accessory);
 
     // Large Home Appliances
     case 'kt':
@@ -309,8 +291,6 @@ function resolveAccessoryByCategory(platform: TuyaPlatform, accessory: PlatformA
       return new LockAccessory(platform, accessory);
     case 'mal':
       return new SecuritySystemAccessory(platform, accessory);
-    case 'sos':
-      return new EmergencyButtonAccessory(platform, accessory);
     case 'wxml':
       return new DoorbellAccessory(platform, accessory);
     case 'qxj':
